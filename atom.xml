@@ -1,0 +1,1919 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://luserli.github.io</id>
+    <title>lucky site</title>
+    <updated>2023-07-16T05:28:12.112Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://luserli.github.io"/>
+    <link rel="self" href="https://luserli.github.io/atom.xml"/>
+    <subtitle>人生是旷野</subtitle>
+    <logo>https://luserli.github.io/images/avatar.png</logo>
+    <icon>https://luserli.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2023, lucky site</rights>
+    <entry>
+        <title type="html"><![CDATA[Jetson nano 获取T265数据并使用串口发送]]></title>
+        <id>https://luserli.github.io/Ucbp6ZeD5/</id>
+        <link href="https://luserli.github.io/Ucbp6ZeD5/">
+        </link>
+        <updated>2023-07-14T05:24:27.000Z</updated>
+        <content type="html"><![CDATA[<p>Created: July 14, 2023 1:05 PM<br>
+Created by: Luser<br>
+Type: AI、Jetson nano</p>
+<h2 id="串口使用">串口使用</h2>
+<p>查看串口设备：</p>
+<pre><code class="language-Shell">ls /dev/tty*
+</code></pre>
+<pre><code class="language-Shell">/dev/tty    /dev/tty18  /dev/tty28  /dev/tty38  /dev/tty48  /dev/tty58   /dev/ttyp0  /dev/ttypb
+/dev/tty0   /dev/tty19  /dev/tty29  /dev/tty39  /dev/tty49  /dev/tty59   /dev/ttyp1  /dev/ttypc
+/dev/tty1   /dev/tty2   /dev/tty3   /dev/tty4   /dev/tty5   /dev/tty6    /dev/ttyp2  /dev/ttypd
+/dev/tty10  /dev/tty20  /dev/tty30  /dev/tty40  /dev/tty50  /dev/tty60   /dev/ttyp3  /dev/ttype
+/dev/tty11  /dev/tty21  /dev/tty31  /dev/tty41  /dev/tty51  /dev/tty61   /dev/ttyp4  /dev/ttypf
+/dev/tty12  /dev/tty22  /dev/tty32  /dev/tty42  /dev/tty52  /dev/tty62   /dev/ttyp5  /dev/ttyS0
+/dev/tty13  /dev/tty23  /dev/tty33  /dev/tty43  /dev/tty53  /dev/tty63   /dev/ttyp6  /dev/ttyS1
+/dev/tty14  /dev/tty24  /dev/tty34  /dev/tty44  /dev/tty54  /dev/tty7    /dev/ttyp7  /dev/ttyS2
+/dev/tty15  /dev/tty25  /dev/tty35  /dev/tty45  /dev/tty55  /dev/tty8    /dev/ttyp8  /dev/ttyS3
+/dev/tty16  /dev/tty26  /dev/tty36  /dev/tty46  /dev/tty56  /dev/tty9    /dev/ttyp9  /dev/ttyTHS1
+/dev/tty17  /dev/tty27  /dev/tty37  /dev/tty47  /dev/tty57  /dev/ttyGS0  /dev/ttypa  /dev/ttyTHS2
+
+</code></pre>
+<figure data-type="image" tabindex="1"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202307152116041.png" alt="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202307152116041.png" loading="lazy"></figure>
+<p>Jetson nano的GPIO口与树莓派的GPIO口相兼容，可在下图查看Jetsonnano的GPIO引脚定义：</p>
+<figure data-type="image" tabindex="2"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/Jetson%20nano%20GPIO%E5%BC%95%E8%84%9A%E5%8F%8A%E5%8A%9F%E8%83%BD%E5%9B%BE.png" alt="https://cdn.jsdelivr.net/gh/luserli/figure/photos/Jetson%20nano%20GPIO%E5%BC%95%E8%84%9A%E5%8F%8A%E5%8A%9F%E8%83%BD%E5%9B%BE.png" loading="lazy"></figure>
+<p>所以可以使用串口设备/dev/ttyTHS1进行GPIO的串口数据传输。</p>
+<p>不同于树莓派中使用的串口库serial，Jetson nano 中的串口使用需要下载串口库pyserial:</p>
+<pre><code class="language-Shell">pip3 install pyserial
+</code></pre>
+<p>使用：</p>
+<pre><code class="language-Python">import serial
+
+ser = serial.Serial(&quot;/dev/ttyTHS1&quot;, 115200, timeout=1)  # 串口设置
+</code></pre>
+<h2 id="t265初始化">T265初始化</h2>
+<pre><code class="language-Python"># 声明 RealSense 管道，封装实际设备和传感器
+pipe = rs.pipeline()
+
+# 构建配置对象并请求姿势数据
+cfg = rs.config()
+cfg.enable_stream(rs.stream.pose)
+
+# 使用请求的配置开始流式传输
+pipe.start(cfg)
+</code></pre>
+<h2 id="t265-pose数据获取并串口输出">T265 pose数据获取并串口输出</h2>
+<p><strong>俯仰角(pitch)、横滚角(roll)和偏航角(yaw)概念：</strong></p>
+<p><a href="https://zhuanlan.zhihu.com/p/450246573">简单理解3D系统中pitch/yaw/roll 的基本概念</a></p>
+<p>T265可直接获取设备四元数信息，官方例程使用四元数的方式进行姿态角度计算</p>
+<blockquote>
+<p><strong>四元数的基本概念：</strong><br>
+四元数是一种数学工具，用于表示旋转的方向和角度。与欧拉角不同，四元数可以避免万向锁问题，并且计算效率更高。</p>
+</blockquote>
+<p>一个四元数由实部（也称为标量部分）和虚部（也称为矢量部分）组成。标量部分是一个实数，而矢量部分是一个三维向量。四元数可以表示为：</p>
+<p><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>q</mi><mo>=</mo><mi>w</mi><mo>+</mo><mi>x</mi><mi>i</mi><mo>+</mo><mi>y</mi><mi>j</mi><mo>+</mo><mi>z</mi><mi>k</mi></mrow><annotation encoding="application/x-tex">q = w + xi + yj + zk</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.19444em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.66666em;vertical-align:-0.08333em;"></span><span class="mord mathdefault" style="margin-right:0.02691em;">w</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.74285em;vertical-align:-0.08333em;"></span><span class="mord mathdefault">x</span><span class="mord mathdefault">i</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.85396em;vertical-align:-0.19444em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mord mathdefault" style="margin-right:0.05724em;">j</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.69444em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="mord mathdefault" style="margin-right:0.03148em;">k</span></span></span></span></p>
+<p>其中，w是实部，x、y和z是矢量部分的三个分量，i、j和k是虚部的三个基本单位向量。四元数的长度可以使用欧几里得范数计算：</p>
+<p><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi mathvariant="normal">∣</mi><mi>q</mi><mi mathvariant="normal">∣</mi><mo>=</mo><mi>s</mi><mi>q</mi><mi>r</mi><mi>t</mi><mo>(</mo><msup><mi>w</mi><mn>2</mn></msup><mo>+</mo><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><msup><mi>y</mi><mn>2</mn></msup><mo>+</mo><msup><mi>z</mi><mn>2</mn></msup><mo>)</mo></mrow><annotation encoding="application/x-tex">|q| = sqrt(w^2 + x^2 + y^2 + z^2)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">∣</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord">∣</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:1.064108em;vertical-align:-0.25em;"></span><span class="mord mathdefault">s</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.02778em;">r</span><span class="mord mathdefault">t</span><span class="mopen">(</span><span class="mord"><span class="mord mathdefault" style="margin-right:0.02691em;">w</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141079999999999em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.897438em;vertical-align:-0.08333em;"></span><span class="mord"><span class="mord mathdefault">x</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141079999999999em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1.008548em;vertical-align:-0.19444em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141079999999999em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1.064108em;vertical-align:-0.25em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141079999999999em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mclose">)</span></span></span></span></p>
+<p>四元数可以用来表示旋转的方向和角度，其中旋转角度θ和旋转轴(x, y, z)可以由四元数的虚部推导出来。具体地说，旋转轴和旋转角度可以使用以下公式计算：</p>
+<p><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>θ</mi><mo>=</mo><mn>2</mn><mo>∗</mo><mi>a</mi><mi>c</mi><mi>o</mi><mi>s</mi><mo>(</mo><mi>w</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">θ = 2 * acos(w)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.69444em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.02778em;">θ</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">2</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault">a</span><span class="mord mathdefault">c</span><span class="mord mathdefault">o</span><span class="mord mathdefault">s</span><span class="mopen">(</span><span class="mord mathdefault" style="margin-right:0.02691em;">w</span><span class="mclose">)</span></span></span></span></p>
+<p><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>y</mi><mo separator="true">,</mo><mi>z</mi><mo>)</mo><mo>=</mo><mo>(</mo><mi>x</mi><mo separator="true">,</mo><mi>y</mi><mo separator="true">,</mo><mi>z</mi><mo>)</mo><mi mathvariant="normal">/</mi><mi>s</mi><mi>q</mi><mi>r</mi><mi>t</mi><mo>(</mo><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><msup><mi>y</mi><mn>2</mn></msup><mo>+</mo><msup><mi>z</mi><mn>2</mn></msup><mo>)</mo></mrow><annotation encoding="application/x-tex">(x, y, z) = (x, y, z) / sqrt(x^2 + y^2 + z^2)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathdefault">x</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:1.064108em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathdefault">x</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="mclose">)</span><span class="mord">/</span><span class="mord mathdefault">s</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.02778em;">r</span><span class="mord mathdefault">t</span><span class="mopen">(</span><span class="mord"><span class="mord mathdefault">x</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141079999999999em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1.008548em;vertical-align:-0.19444em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141079999999999em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1.064108em;vertical-align:-0.25em;"></span><span class="mord"><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141079999999999em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mclose">)</span></span></span></span></p>
+<p>其中acos是反余弦函数。通过这些公式，可以从四元数中提取旋转的方向和角度，并将其转换为欧拉角或其他旋转表示形式。</p>
+<p><strong>俯仰角(pitch)、横滚角(roll)和偏航角(yaw)计算公式：</strong></p>
+<p>可以使用四元数来计算旋转的俯仰角、横滚角和偏航角。使用四元数表示旋转时，可以使用以下公式将四元数转换为欧拉角形式：</p>
+<p><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>p</mi><mi>i</mi><mi>t</mi><mi>c</mi><mi>h</mi><mo>=</mo><mi>a</mi><mi>s</mi><mi>i</mi><mi>n</mi><mo>(</mo><mn>2</mn><mo>∗</mo><mo>(</mo><mi>q</mi><mi>w</mi><mi>q</mi><mi>y</mi><mo>−</mo><mi>q</mi><mi>x</mi><mi>q</mi><mi>z</mi><mo>)</mo><mo>)</mo></mrow><annotation encoding="application/x-tex">pitch = asin(2 * (qwqy - qxqz))</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8888799999999999em;vertical-align:-0.19444em;"></span><span class="mord mathdefault">p</span><span class="mord mathdefault">i</span><span class="mord mathdefault">t</span><span class="mord mathdefault">c</span><span class="mord mathdefault">h</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault">a</span><span class="mord mathdefault">s</span><span class="mord mathdefault">i</span><span class="mord mathdefault">n</span><span class="mopen">(</span><span class="mord">2</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.02691em;">w</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault">x</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="mclose">)</span><span class="mclose">)</span></span></span></span></p>
+<p><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>r</mi><mi>o</mi><mi>l</mi><mi>l</mi><mo>=</mo><mi>a</mi><mi>t</mi><mi>a</mi><mi>n</mi><mn>2</mn><mo>(</mo><mn>2</mn><mo>∗</mo><mo>(</mo><mi>q</mi><mi>w</mi><mi>q</mi><mi>x</mi><mo>+</mo><mi>q</mi><mi>y</mi><mi>q</mi><mi>z</mi><mo>)</mo><mo separator="true">,</mo><mn>1</mn><mo>−</mo><mn>2</mn><mo>∗</mo><mo>(</mo><mi>q</mi><mi>x</mi><mi>q</mi><mi>x</mi><mo>+</mo><mi>q</mi><mi>y</mi><mi>q</mi><mi>y</mi><mo>)</mo><mo>)</mo></mrow><annotation encoding="application/x-tex">roll = atan2(2 * (qwqx + qyqz), 1 - 2 * (qxqx + qyqy))</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.69444em;vertical-align:0em;"></span><span class="mord mathdefault" style="margin-right:0.02778em;">r</span><span class="mord mathdefault">o</span><span class="mord mathdefault" style="margin-right:0.01968em;">l</span><span class="mord mathdefault" style="margin-right:0.01968em;">l</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault">a</span><span class="mord mathdefault">t</span><span class="mord mathdefault">a</span><span class="mord mathdefault">n</span><span class="mord">2</span><span class="mopen">(</span><span class="mord">2</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.02691em;">w</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault">x</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="mclose">)</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord">1</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">2</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault">x</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault">x</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mclose">)</span><span class="mclose">)</span></span></span></span></p>
+<p><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>y</mi><mi>a</mi><mi>w</mi><mo>=</mo><mi>a</mi><mi>t</mi><mi>a</mi><mi>n</mi><mn>2</mn><mo>(</mo><mn>2</mn><mo>∗</mo><mo>(</mo><mi>q</mi><mi>w</mi><mi>q</mi><mi>z</mi><mo>+</mo><mi>q</mi><mi>x</mi><mi>q</mi><mi>y</mi><mo>)</mo><mo separator="true">,</mo><mn>1</mn><mo>−</mo><mn>2</mn><mo>∗</mo><mo>(</mo><mi>q</mi><mi>y</mi><mi>q</mi><mi>y</mi><mo>+</mo><mi>q</mi><mi>z</mi><mi>q</mi><mi>z</mi><mo>)</mo><mo>)</mo></mrow><annotation encoding="application/x-tex">yaw = atan2(2 * (qwqz + qxqy), 1 - 2 * (qyqy + qzqz))</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.19444em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mord mathdefault">a</span><span class="mord mathdefault" style="margin-right:0.02691em;">w</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2777777777777778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault">a</span><span class="mord mathdefault">t</span><span class="mord mathdefault">a</span><span class="mord mathdefault">n</span><span class="mord">2</span><span class="mopen">(</span><span class="mord">2</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.02691em;">w</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault">x</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mclose">)</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.16666666666666666em;"></span><span class="mord">1</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:0.64444em;vertical-align:0em;"></span><span class="mord">2</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.03588em;">y</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222222222222222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="mord mathdefault" style="margin-right:0.03588em;">q</span><span class="mord mathdefault" style="margin-right:0.04398em;">z</span><span class="mclose">)</span><span class="mclose">)</span></span></span></span></p>
+<p>其中，qx、qy、qz和qw分别是四元数的虚部和实部，atan2是反正切函数，asin是反正弦函数。这些公式可以将四元数表示的旋转转换为欧拉角形式，其中pitch表示绕y轴旋转的俯仰角，roll表示绕x轴旋转的横滚角，yaw表示绕z轴旋转的偏航角。</p>
+<p>将T265获取到的四元数数据带入计算公式中即可获得俯仰角、横滚角和偏航角</p>
+<p>参考官方例程的代码：</p>
+<pre><code class="language-Python">data = pose.get_pose_data()
+
+w = data.rotation.w
+x = -data.rotation.z
+y = data.rotation.x
+z = -data.rotation.y
+
+pitch =  -m.asin(2.0 * (x*z - w*y)) * 180.0 / m.pi;
+roll  =  m.atan2(2.0 * (w*x + y*z), w*w - x*x - y*y + z*z) * 180.0 / m.pi;
+yaw   =  m.atan2(2.0 * (w*z + x*y), w*w + x*x - y*y - z*z) * 180.0 / m.pi;
+</code></pre>
+<p>添加串口传输与位置信息后的完整代码：</p>
+<pre><code class="language-Python">import pyrealsense2 as rs
+import math as m
+import serial
+import time
+
+#取整数的补码
+def int2hex(data):
+    if(data&gt;0):
+        return data
+    else :
+        data=-data
+        data=data|0x8000
+        return data
+    
+
+while (True):
+    ser = serial.Serial(&quot;/dev/ttyTHS1&quot;, 115200, timeout=1)  # 串口设置
+    # 声明 RealSense 管道，封装实际设备和传感器
+    pipe = rs.pipeline()
+
+    # 构建配置对象并请求姿势数据
+    cfg = rs.config()
+    cfg.enable_stream(rs.stream.pose)
+
+    # 使用请求的配置开始流式传输
+    pipe.start(cfg)
+
+    try:
+        while (True):
+            # 等待相机发出的下一组帧
+            frames = pipe.wait_for_frames()
+
+            # 获取姿势框架
+            pose = frames.get_pose_frame()
+            if pose:
+                # jetson nano t265角度传输
+                data = pose.get_pose_data()
+                # 位姿四元数的欧拉角
+                ## 通过T265直接获取四元数
+                w = data.rotation.w
+                x = -data.rotation.z
+                y = data.rotation.x
+                z = -data.rotation.y
+                ## 使用四元数公式计算三种欧拉角
+                pitch =  -m.asin(2.0 * (x*z - w*y)) * 180.0 / m.pi
+                roll  =  m.atan2(2.0 * (w*x + y*z), w*w - x*x - y*y + z*z) * 180.0 / m.pi
+                yaw   =  m.atan2(2.0 * (w*z + x*y), w*w + x*x - y*y - z*z) * 180.0 / m.pi
+                
+                # 转换为十六进制数并使用 bytearray 将数据打包成需要传输的格式。
+                pi = int2hex(int(pitch))
+                ro = int2hex(int(roll))
+                ya = int2hex(int(yaw))
+                my_data1 = bytearray([0xaa,0x29,0x05,0x35,0x06,pi&gt;&gt;8,pi&amp;0xff,ro&gt;&gt;8,ro&amp;0xff,ya&gt;&gt;8,ya&amp;0xff,0x00])
+                ser.write(my_data1) # 串口传输 
+                
+                hh = int2hex(-10)
+                print(&quot;------------hh:&quot;,hh)
+                print(&quot;Frame #{}&quot;.format(pose.frame_number))
+                print(&quot;RPY [deg]: Roll: {0:.7f}, Pitch: {1:.7f}, Yaw: {2:.7f}&quot;.format(roll, pitch, yaw))
+                
+                # 使用相机的位置信息，将位置信息转化为十六进制数据，并将数据打包成需要传输的格式。
+                #xyz
+                my_x = data.translation.x*10000
+                my_y = data.translation.y*10000
+                my_z = data.translation.z*10000
+                
+                my_x = int2hex(int(my_x))
+                my_y = int2hex(int(my_y))
+                my_z = int2hex(int(my_z))
+                my_data2 = bytearray([0xaa,0x29,0x05,0x34,0x06,my_x&gt;&gt;8,my_x&amp;0xff,my_y&gt;&gt;8,my_y&amp;0xff,my_z&gt;&gt;8,my_z&amp;0xff,0x00])
+                ser.write(my_data2) # 串口传输
+                print(&quot;pos:{}&quot;.format(data.translation))
+                time.sleep(0.1)  #调试时使用，方便观察
+                
+    finally:
+        pipe.stop()
+
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Jetson nano 部署 librealsense]]></title>
+        <id>https://luserli.github.io/PZeQFdmOQ/</id>
+        <link href="https://luserli.github.io/PZeQFdmOQ/">
+        </link>
+        <updated>2023-07-13T04:08:54.000Z</updated>
+        <content type="html"><![CDATA[<p>Created: July 13, 2023 12:08 AM<br>
+Created by: Luser<br>
+Type: AI、Jetson nano</p>
+<h2 id="jetson-nano-换源">Jetson nano 换源</h2>
+<p>Jetson设备默认的apt镜像源在海外，所以需要用国内的源代替海外源</p>
+<p>Jetson处理器是<strong>aarch64</strong>类型的，常用的arm64换源教程<strong>不能用！</strong></p>
+<p>要使用与之匹配的源，国内aarch64的源有的连不上，有的包无法安装，好多网上Jetson Nano的换源教程都用不了，下面的这个清华大学的源完美可用：</p>
+<p><strong>1.先备份原本的source.list文件</strong></p>
+<pre><code class="language-Shell">sudo cp /etc/apt/sources.list /etc/apt/sources.list.bak  
+</code></pre>
+<p><strong>2.修改source</strong></p>
+<p>进入source.list</p>
+<pre><code class="language-Shell">sudo gedit /etc/apt/sources.list
+</code></pre>
+<p>按&quot;i&quot;开始输入，然后删除所有内容，复制进下面的</p>
+<pre><code class="language-Plain">deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ bionic main multiverse restricted universe
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ bionic-security main multiverse restricted universe
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ bionic-updates main multiverse restricted universe
+deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ bionic-backports main multiverse restricted universe
+deb-src http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ bionic main multiverse restricted universe
+deb-src http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ bionic-security main multiverse restricted universe
+deb-src http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ bionic-updates main multiverse restricted universe
+deb-src http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports/ bionic-backports main multiverse restricted universe
+</code></pre>
+<p>“Esc”结束输入，“:wq!”保存退出</p>
+<p><strong>3.更新软件列表，保存在本地</strong></p>
+<pre><code class="language-Shell">sudo apt-get update
+</code></pre>
+<p>如果需要，可以更新软件：</p>
+<pre><code class="language-Shell">sudo apt-get upgrade
+</code></pre>
+<h2 id="安装依赖">安装依赖</h2>
+<pre><code class="language-Shell">sudo apt-get install git cmake libssl-dev libusb-1.0-0-dev pkg-config libgtk-3-dev libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev
+</code></pre>
+<h2 id="下载realsense-sdk">下载Realsense SDK</h2>
+<p>因为需要同时支持D455与T265，并且T265已经停产了，realsense v2.54.1 以后不再支持T265，故需下载 2.53.1版同时支持D455与T265：</p>
+<pre><code class="language-Shell">git clone -b v2.53.1 https://github.com/IntelRealSense/librealsense.git
+</code></pre>
+<h2 id="编译准备">编译准备</h2>
+<p>cmake 后面的命令是想要编译时配置好pyrealsense2环境</p>
+<pre><code class="language-Shell">cd librealsense
+mkdir build &amp;&amp; cd build
+cmake ../ -DBUILD_PYTHON_BINDINGS:bool=true -DPYTHON_EXECUTABLE=/usr/bin/python3 -DBUILD_WITH_CUDA=true
+</code></pre>
+<p>运行cmake时不要自行设置参数！！不然很可能会不能运行相机。</p>
+<h2 id="编译与安装">编译与安装</h2>
+<pre><code class="language-Shell">make
+sudo make install
+</code></pre>
+<p>树莓派使用<code>make -j</code>进行多线程编译可能有点压力，使用单线程编译就好</p>
+<h2 id="编译过程中可能遇到的错误">编译过程中可能遇到的错误</h2>
+<p>1:Could NOT find OpenSSL, try to set the path to OpenSSL root folder in the</p>
+<pre><code class="language-Shell">$ sudo apt-get install libssl-dev
+</code></pre>
+<p>2:The Xinerama headers were not found</p>
+<pre><code class="language-Shell">$ sudo apt-get install libsdl2-dev
+</code></pre>
+<p>3:/home/***/projects/librealsense/build/third-party/pybind11/include/pybind11/detail/common.h:124:10: fatal error: Python.h: No such file or directory,CMakeFiles/Makefile2:268: recipe for target 'wrappers/python/CMakeFiles/pybackend2.dir/all' failed</p>
+<pre><code class="language-Shell">$ sudo apt-get install python3.6-dev
+</code></pre>
+<h2 id="设置udev规则">设置udev规则</h2>
+<p>运行项目中<code>scripts</code>目录下的<code>setup_udev_rules.sh</code>就好：</p>
+<pre><code class="language-Shell">sudo sh ./scripts/setup_udev_rules.sh
+echo 'hid_sensor_custom' | sudo tee -a /etc/modules
+</code></pre>
+<p>添加环境变量</p>
+<pre><code class="language-Shell">export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+</code></pre>
+<h2 id="验证安装"><strong>验证安装</strong></h2>
+<p>将T265通过USB连接到树莓派上（要连蓝色接口的USB3.0），然后运行下面这个代码。</p>
+<pre><code class="language-Shell">rs-enumerate-devices
+</code></pre>
+<p>只要能输出信息，而不是说没有设备插入，那就是成功了。</p>
+<h2 id="测试">测试</h2>
+<pre><code class="language-Shell">sudo realsense-viewer
+</code></pre>
+<h2 id="pyrealsense2的问题">pyrealsense2的问题</h2>
+<p>编译完SDK后，C++的realsense环境可以正常使用和运行，但是python的pyrealsense2却无法被python正确找到，经过测试后发现解决办法：</p>
+<p>在librealsense编译完后会在build目录中生成python的链接库，将其手动添加到python的import搜索路径中就可以被正确链接到了：</p>
+<p>找到编译完后生成的.so文件：</p>
+<figure data-type="image" tabindex="1"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202307152105499.png" alt="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202307152105499.png" loading="lazy"></figure>
+<p>获取import的默认搜索路径：</p>
+<figure data-type="image" tabindex="2"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202307152107468.png" alt="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202307152107468.png" loading="lazy"></figure>
+<p>将生成的<code>pyrealsense2.cpython-36m-aarch64-linux-gnu.so</code>文件copy到上面获取到的任一个目录中即可，这里放到'/usr/lib/python3.6'中</p>
+<pre><code class="language-Shell">cp pyrealsense2.cpython-36m-aarch64-linux-gnu.so /usr/lib/python3.6
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[K210入门笔记]]></title>
+        <id>https://luserli.github.io/zb6nuFyOQ/</id>
+        <link href="https://luserli.github.io/zb6nuFyOQ/">
+        </link>
+        <updated>2023-06-26T07:41:20.000Z</updated>
+        <content type="html"><![CDATA[<p>Created: June 26, 2023 11:30 PM<br>
+Created by: Luser<br>
+Type: MCU</p>
+<h2 id="1maxipy固件烧录教程">1.Maxipy固件烧录教程</h2>
+<h3 id="1maxipy简介">(1)Maxipy简介</h3>
+<p>[Maxipy](https://github.com/sipeed/MaixPy &quot;MaxiPy&quot; &quot;Maxipy&quot;)是一个将Micropython语言移植到K210芯片上的工程，该工程发行的固件名字就叫做Maxipy，Maxipy固件中集成了大量的机器视觉算法，并全部兼容openmv的算法库，然后将这个固件烧录到K210上之后就可以在该单片机上运行python，相对于传统的C语言单片机开发，难度极大降低、效率极大提高。 新买的K210开发板都已经刷好了默认固件，可以直接使用。但是建议刷到最新版固件，新版固件bug少。在连接好摄像头和液晶屏后即可上电测试。首先需要下载安装开发环境<a href="https://cn.dl.sipeed.com/MAIX/MaixPy/ide">Maxipy IDE</a>，下载之后双击exe安装包，根据个人喜好进行安装即可，无特殊要求，安装路径全为英文名是一个良好的习惯。然后使用USB连接开发板和电脑USB口，将开发板连接Maxipy IDE,点击IDE左下角连接，点击左上角文件，打开该K210项目仓库中的scripts文件夹中的hello_world.py，点击左下角三角，即可实现在线运行。上述已经实现了板子的运行，并将摄像头拍摄到的画面显示在液晶屏上。但是还是建议参考下节方法来为板子升级最新固件。</p>
+<h3 id="2固件烧录方法">(2)固件烧录方法</h3>
+<p>首先<a href="https://cn.dl.sipeed.com/shareURL/MAIX/MaixPy/release/master">下载最新MaxiPy固件</a>，然后<a href="https://cn.dl.sipeed.com/shareURL/MAIX/tools/kflash_gui">下载固件烧录工具kflash_gui</a>。MaxiPy固件常用的有如下三种，可根据自己需要选择，建议在不适用openmv库时烧录最小固件，可以节约内存。下载站中官方的readme文档中有对每个固件的介绍。</p>
+<ul>
+<li>maixpy_v*_no_lvgl.bin： MaixPy固件, 不带LVGL版本.(LVGL是嵌入式GUI框架, 写界面的时候需要用到)</li>
+<li>maixpy_v*_full.bin： 完整版的MaixPy固件(MicroPython + OpenMV API + lvgl )</li>
+<li>maixpy_v0.3.1_minimum.bin： MaixPy固件最小集合，不支持 MaixPy IDE， 不包含OpenMV的相关算法</li>
+</ul>
+<p>得到MaxiPy固件和烧录工具kflash_gui后，点击进入kflash_gui子文件夹，该文件夹内是固件烧录工具kflash_gui，注意不要删除里边的任何文件，里边的kflash_gui.exe即为可运行的固件烧录程序。</p>
+<p>双击kflash_gui.exe，即可打开gui界面。</p>
+<p>固件烧录程序打开后，将K210开发板通过USB数据线连接电脑，正常情况下，USB插入电脑后，烧录程序会自动识别并自动填写相关配置。 如果没有自动识别和自动配置，可进行手动配置：</p>
+<ul>
+<li>开发板选择对应的开发板，我们使用的是MAXI DOCK</li>
+<li>下载到选择Flash</li>
+<li>串口设置中的端口选项选择K210开发板连接电脑后对应的端口，可以通过设备管理器查看端口号</li>
+<li>波特率为1500000</li>
+<li>速度模式为低速模式</li>
+</ul>
+<p>配置完成之后，点击打开文件按钮进行浏览到你存放Maxipy固件的文件夹，找到所要下载的固件。</p>
+<p>之后单击下载按钮，即可开始烧录固件，此时只需等待固件烧录完成即可。</p>
+<p>之后点击OK按钮即可，烧录成功后开发板会自动重启，到此已完成固件烧录，可以关闭固件烧录软件。</p>
+<h2 id="2ide使用教程">2.IDE使用教程</h2>
+<h3 id="1ide安装">(1)IDE安装</h3>
+<p>IDE的下载和安装前述已经说明，和普通软件安装过程无异。安装好之后，桌面会出现名字为MaxiPy IDE的应用程序，双击运行，界面如下所示。左下角有两个按钮，上边的链条形状为连接按钮，用来连接开发板和IDE，下边的三角按钮为运行按钮，用来启动脚本在线运行，在未连接开发板时链接按钮为绿色，运行按钮为灰色。</p>
+<figure data-type="image" tabindex="1"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306251610562.png" alt="1" loading="lazy"></figure>
+<h3 id="2开发板和ide连接">(2)开发板和IDE连接</h3>
+<p>安装好IDE后，将K210开发板通过USB数据线和电脑连接，然后点击左下角的连接按钮，此时如果电脑连接了多个串口设备时，IDE会提示你选择要连接的串口，此时需要选择K210对应的串口，和固件烧录时的串口号是一致的。连接成功后，连接按钮变成红色，运行按钮变成绿色。此时点击红色连接按钮可断开连接。</p>
+<h3 id="3在线运行脚本程序">(3)在线运行脚本程序</h3>
+<p>成功连接开发板和IDE后，即可进行程序的编写和在线运行。可以点击IDE的文件按钮，选择新建脚本文件编写自己的程序，也可以点击打开文件按钮选择已有的脚本程序。这里选择已有的脚本程序，脚本程序存放scripts子文件夹内，通过IDE的文件按钮，浏览到脚本文件夹，全选所有的脚本，点击打开，打开上述脚本文件。</p>
+<p>可以点击左上方的下三角按钮切换脚本，如下图所示。</p>
+<p>[<img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306251613678.png" alt="flash_gui floder" loading="lazy"></p>
+<p>此时可以修改程序，之后点击运行按钮即可在线运行脚本。如果提示out of memory可以重启开发板来释放内存。运行界面如下所示。</p>
+<figure data-type="image" tabindex="2"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306251615427.png" alt="" loading="lazy"></figure>
+<p>界面下方为log输出，可以看运行数据；右上方为图像窗口，可以展示摄像头画面。此时运行按钮变为红色，再次点击可停止运行。</p>
+<h3 id="4脱机运行">(4)脱机运行</h3>
+<p>上述程序运行是在线运行，只能连接IDE才可以运行。如果要实现脱机运行，需要将脚本程序烧写到K210开发板。烧写方法为：首先停止在线运行，然后点击IDE工具栏，点击工具选项，点击将打开的脚本保存到开发板的boot.py，然后点击是，等待完成即可。之后即可不依赖IDE，实现上电脱机运行。</p>
+<h2 id="3神经网络模型使用方法">3.神经网络模型使用方法</h2>
+<p>神经网络应用除了烧录上述对应的脚本程序之外，还要将训练好的神经网络模型放到K210开发板SD的根目录，训练过程后续会有讲解。例如在人体检测时使用了深度学习方法，其对应的网络模型存放在该仓库的model子文件夹内，名称为class.kmodel。将其拷贝到SD卡根目录即可。其他模型操作方法一样。.kmodel文件是K210支持的网络模型文件。</p>
+<h2 id="4初次运行-hello-world">4.初次运行 Hello World</h2>
+<p>按照国际惯例，我们都会运行一下hello world程序来作为我们进行开发的开始，通过这个程序可以验证一下K210开发板的基本功能和外设是否正常，例如液晶屏和摄像头。该程序将摄像头采集到的图像显示在LCD液晶屏上，并在IDE串口打印帧率，源码如下：</p>
+<pre><code class="language-python"># Hello World Example
+#
+# Welcome to the MaixPy IDE!
+# 1. Conenct board to computer
+# 2. Select board at the top of MaixPy IDE: `tools-&gt;Select Board`
+# 3. Click the connect buttion below to connect board
+# 4. Click on the green run arrow button below to run the script!
+
+import sensor, image, time, lcd
+
+lcd.init(freq=15000000)
+sensor.reset()                      # Reset and initialize the sensor. It will
+                                    # run automatically, call sensor.run(0) to stop
+sensor.set_pixformat(sensor.RGB565) # Set pixel format to RGB565 (or GRAYSCALE)
+sensor.set_framesize(sensor.QVGA)   # Set frame size to QVGA (320x240)
+sensor.skip_frames(time = 2000)     # Wait for settings take effect.
+clock = time.clock()                # Create a clock object to track the FPS.
+
+while(True):
+    clock.tick()                    # Update the FPS clock.
+    img = sensor.snapshot()         # Take a picture and return the image.
+    lcd.display(img)                # Display on LCD
+    print(clock.fps())              # Note: MaixPy's Cam runs about half as fast when connected
+                                    # to the IDE. The FPS should increase once disconnected.
+
+</code></pre>
+<h2 id="5机器视觉应用">5.机器视觉应用</h2>
+<p>硬件平台：K210开发板，软件平台：openmv机器视觉库。机器视觉类应用不能使用最小固件，因为最小固件里没有集成openmv机器视觉库。</p>
+<h3 id="1最大色块识别">(1)最大色块识别</h3>
+<p>该应用对应scripts文件夹下的find_blob.py，其的目的是认为事先设定一个LAB色系颜色阈值，就可以选中一种颜色，程序会识别出图像中该颜色的最大连通区域，并给出区域中心坐标。该应用主要接住了openmv机器视觉库的find_blob库函数，然后采用任意一种排序算法对检测到的所有与预设颜色一致的色块面积大小进行排序，最终将面积最大的色块框起来就是代求的最大色块。</p>
+<h4 id="找最大色块的函数">找最大色块的函数：</h4>
+<pre><code class="language-python">def find_max(blobs):
+    max_size=0
+    for blob in blobs:
+        if blob[2]*blob[3] &gt; max_size:
+            max_blob=blob
+            max_size = blob[2]*blob[3]
+    return max_blob
+
+#寻找两个最大的色块，ID存在max_ID中，便于调用
+def find_2_max(blobs):
+    max_size=[0,0]
+    max_ID=[-1,-1]
+    for i in range(len(blobs)):
+        if blobs[i].pixels()&gt;max_size[0]:
+            max_ID[1]=max_ID[0]
+            max_size[1]=max_size[0]
+            max_ID[0]=i
+            max_size[0]=blobs[i].pixels()
+        elif blobs[i].pixels()&gt;max_size[1]:
+            max_ID[1]=i
+            max_size[1]=blobs[i].pixels()
+    return max_ID
+</code></pre>
+<p>源码如下：</p>
+<pre><code class="language-python"># 找最大色块
+'''
+色块对象是由 image.find_blobs 返回的。
+image.find_blobs(thresholds, invert=False, roi, x_stride=2, y_stride=1, area_threshold=10, pixels_threshold=10, merge=False,margin=0, threshold_cb=None, merge_cb=None)
+查找图像中指定的色块。返回 image.blog 对象列表；
+【thresholds】 必须是元组列表。 [(lo, hi), (lo, hi), ..., (lo, hi)] 定义你想追踪的颜色范围。 对于灰度图像，每个元组需要包含两个值 - 最小灰度值和最大灰度值。 仅考虑落在这些阈值之间的像素区域。 对于 RGB565 图像，每个元组需要有六个值(l_lo，l_hi，a_lo，a_hi，b_lo，b_hi) - 分别是 LAB L，A 和 B通道的最小值和最大值。
+【area_threshold】若色块的边界框区域小于此参数值，则会被过滤掉；
+【pixels_threshold】若色块的像素数量小于此参数值，则会被过滤掉；
+【merge】若为 True,则合并所有没有被过滤的色块；
+【margin】调整合并色块的边缘。
+对于 RGB565 图像，每个元组需要有六个值(l_lo，l_hi，a_lo，a_hi，b_lo，b_hi)
+分别是 LAB中 L，A 和 B 通道的最小值和最大值。
+L的取值范围为0-100，a/b 的取值范围为-128到127。
+'''
+import sensor
+import image
+import lcd
+import time
+lcd.init()
+sensor.reset(freq=24000000, set_regs=True, dual_buff=True)
+sensor.set_pixformat(sensor.RGB565)
+sensor.set_framesize(sensor.QVGA)
+sensor.set_vflip(1)    #设置摄像头后置
+sensor.run(1)
+
+#红色阈值[0],绿色阈值[1],蓝色阈值[2]
+rgb_thresholds =[
+                (30, 100, 15, 127, 15, 127),
+                (0, 80, -70, -10, -0, 30),
+                (0, 30, 0, 64, -128, -20)]
+
+def find_max(blobs):
+    max_size=0
+    for blob in blobs:
+        if blob[2]*blob[3] &gt; max_size:
+            max_blob=blob
+            max_size = blob[2]*blob[3]
+    return max_blob
+
+while True:
+    img=sensor.snapshot()
+    blobs = img.find_blobs([rgb_thresholds[0]])
+    if blobs:
+        b = find_max(blobs)
+        img.draw_rectangle(b[0:4]) # 画框
+        img.draw_cross(b[4], b[5]) # 画中心十字
+    lcd.rotation(2)
+    lcd.display(img)
+
+</code></pre>
+<h2 id="6串口传输">6.串口传输</h2>
+<h3 id="1k210与电脑串口助手进行信息交互">(1)K210与电脑串口助手进行信息交互</h3>
+<pre><code class="language-python">from machine import UART
+from fpioa_manager import fm
+
+## 端口映射 IO7→RX1，IO8→TX1
+fm.register(7, fm.fpioa.UART1_RX, force=True)
+fm.register(8, fm.fpioa.UART1_TX, force=True)
+#初始化串口
+uart = UART(UART.UART1, 115200, read_buf_len=4096, timeout_char=1000)
+uart.write('Experiment start!\r\n')
+
+while True:
+
+    text=uart.read() #读取数据
+
+    if text: #如果读取到了数据
+        print(text.decode('utf-8')) #REPL打印
+        uart.write('I got\r\n'+text.decode('utf-8')) #数据回传
+</code></pre>
+<h3 id="2k210使用固定数据格式发送数据给单片机或上位机">(2)K210使用固定数据格式发送数据给单片机（或上位机）</h3>
+<pre><code class="language-python">```
+通信数据传输测试
+K210按照 &lt;0xb3,0xb3,rect,0x0d,0x0a&gt; 的数据格式向单片机或上位机发送数据
+rect是找到的最大色块的x,y,w,h数据,也就是总共应该发送8个16进制数
+```
+import sensor, image, lcd, time
+from machine import UART
+from fpioa_manager import fm
+
+# 端口映射 IO6→RX1，IO7→TX1 
+fm.register(7, fm.fpioa.UART1_RX, force=True)
+fm.register(8, fm.fpioa.UART1_TX, force=True)
+# 初始化串口
+uart = UART(UART.UART1, 115200, read_buf_len=4096, timeout_char=1000)
+uart.write('Experiment start!\r\n')
+# 设置针头针尾
+u_start=bytearray([0xb3,0xb3])
+u_over=bytearray([0x0d,0x0a])
+# 初始化摄像头
+sensor.reset(freq=24000000, set_regs=True, dual_buff=True)
+sensor.set_pixformat(sensor.RGB565)
+sensor.set_framesize(sensor.QVGA)
+sensor.skip_frames(30)
+sensor.set_vflip(True)    #设置摄像头后置
+clock = time.clock()
+sensor.run(True)
+
+# 找最大的色块
+def find_max(blobs):
+    max_size=0
+    for blob in blobs:
+        if blob[2]*blob[3] &gt; max_size:
+            max_blob=blob
+            max_size = blob[2]*blob[3]
+    return max_blob
+
+#红色阈值[0],绿色阈值[1],蓝色阈值[2]
+rgb_thresholds =[
+                (30, 100, 15, 127, 15, 127),
+                (0, 80, -70, -10, -0, 30),
+                (0, 30, 0, 64, -128, -20)]
+
+row_data=[0,0,0,0]
+
+while True:
+    times=0
+    clock.tick()
+    img = sensor.snapshot().lens_corr(strength = 1.8, zoom = 1.0)#不断拍照，进行鱼眼校正
+
+    blobs = img.find_blobs([rgb_thresholds[0]])
+    if blobs:
+        b = find_max(blobs)
+        row_data[0:4]=b[0:4]
+        img.draw_rectangle(b[0:4]) # 画框
+        img.draw_cross(b[4], b[5]) # 画中心十字
+    print(row_data)
+    #传输数据给单片机
+    uart_buf = bytearray(row_data)
+    uart.write(u_start)
+    uart.write(uart_buf)
+    uart.write(u_over)
+</code></pre>
+<p>使用串口助手接收到的数据如下（串口助手中使用16进制显示的方式查看）：</p>
+<figure data-type="image" tabindex="3"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306261529944.png" alt="uart" loading="lazy"></figure>
+<h2 id="7小车循迹实现">7.小车循迹实现</h2>
+<p>参考文章：</p>
+<p><a href="https://blog.csdn.net/weixin_48267104/article/details/112986168">循迹识别小车：（四）OpenMV4部分_openmv循迹_南沐ヾ的博客-CSDN博客</a></p>
+<p>K210中有许多openmv的API可以直接使用，不过细节处还是有些许不同：</p>
+<pre><code class="language-python">import sensor, lcd, image, time, math
+from machine import UART
+from fpioa_manager import fm
+
+# 端口映射 IO7→RX1，IO8→TX1
+fm.register(7, fm.fpioa.UART1_RX, force=True)
+fm.register(8, fm.fpioa.UART1_TX, force=True)
+# 初始化串口
+uart = UART(UART.UART1, 115200, timeout_char=1000)
+# 设置针头针尾
+u_start=bytearray([0xb3,0xb3])
+u_over=bytearray([0x0d,0x0a])
+# 初始化摄像头
+sensor.reset(freq=24000000, set_regs=True, dual_buff=True)
+sensor.set_contrast(1)
+sensor.set_pixformat(sensor.RGB565)
+# QVGA:320x240 resolution for the camera sensor.
+# QQVGA:160x120 resolution for the camera sensor.
+sensor.set_framesize(sensor.QQVGA)
+sensor.skip_frames(30)# 让新的设置生效。
+clock = time.clock()# 跟踪FPS帧率
+sensor.set_vflip(True)
+sensor.set_hmirror(True)
+sensor.run(True)
+# 设置巡线的阈值
+GRAYSCALE_THRESHOLD = [(0, 44, -128, 127, -128, 127)]
+
+# 每个roi为(x, y, w, h)，线检测算法将尝试找到每个roi中最大的blob的质心。
+# 然后用不同的权重对质心的x位置求平均值，其中最大的权重分配给靠近图像底部的roi，
+# 较小的权重分配给下一个roi，以此类推。
+ROIS = [
+        (0, 90, 160, 20, 0.7),
+        (0, 50, 160, 20, 0.35),
+        (0, 0, 160, 20, 0.08)
+       ]#三个区域
+# roi代表三个取样区域，（x,y,w,h,weight）,代表左上顶点（x,y）宽高分别为w和h的矩形，
+# weight为当前矩形的权值。注意本例程采用的QQVGA图像大小为160x120，roi即把图像横分成三个矩形。
+# 三个矩形的阈值要根据实际情况进行调整，离机器人视野最近的矩形权值要最大，
+# 如上图的最下方的矩形，即(0, 100, 160, 20, 0.7)
+
+# 计算权值和。遍历上面的三个矩形，r[4]即每个矩形的权值。
+weight_sum = 0
+for r in ROIS: weight_sum += r[4]# r[4] is the roi weight.
+
+def find_max(blobs):
+    max_size=0
+    for blob in blobs:
+        if blob[2]*blob[3] &gt; max_size:
+            max_blob=blob
+            max_size = blob[2]*blob[3]
+    return max_blob
+
+# 弧度转角度
+def degrees(radians):
+    return (180 * radians) / math.pi
+
+def car_run():
+    centroid_sum = 0
+    for r in range(3):  # 三个区域分别寻找色块
+        # r[0:4] is roi tuple.
+        #找到视野中的线,merge=true,将找到的图像区域合并成一个
+        blobs = img.find_blobs(GRAYSCALE_THRESHOLD, roi=ROIS[r][0:4], merge=True,area_threshold=100,margin=3)
+        if blobs:
+            b = find_max(blobs)
+            img.draw_rectangle(b.rect())
+            img.draw_cross(b.cx(),b.cy())
+            centroid_sum += b.cx() * ROIS[r][4] # 乘权值
+    center_pos = 0
+    center_pos = (centroid_sum / weight_sum)# 中间公式
+    deflection_angle = 0
+    deflection_angle = -math.atan((center_pos-80)/60)# 计算角度
+    deflection_angle = math.degrees(deflection_angle)# 弧度制换成角度制
+
+    return [int(deflection_angle)+90] # 要发送的数据哪怕只有一位也需要进行打包，否则发送的数据会是0
+
+# 入口参数：发送数据长度，发送的数据；Transmit_Data(4,[0x00, 0x00, 0x00, 0x00])
+def Transmit_Data(TX_Length, TX_Buffer):
+    global uart
+    TX_Data = bytearray([0x59, TX_Length])         #bytearray是二进制数据组成的序列，每个元素8bit二进制组成
+    for i in range(TX_Length):
+        TX_Data.append(TX_Buffer[i])
+    uart.write(TX_Data)
+
+while(True):
+    times=0
+    clock.tick()
+    img = sensor.snapshot().lens_corr(strength = 1.8, zoom = 1.0)# 不断拍照，进行鱼眼校正
+    row_data=car_run()
+    print(row_data)
+    # 传输数据给单片机
+    uart_buf = bytearray(row_data)
+    uart.write(u_start)
+    uart.write(uart_buf)
+    uart.write(u_over)
+</code></pre>
+<figure data-type="image" tabindex="4"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306261911201.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="5"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306261936004.png" alt="" loading="lazy"></figure>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Windows使用Hyper-V创建 VM（虚拟机）进行实验]]></title>
+        <id>https://luserli.github.io/vQAsha_dL/</id>
+        <link href="https://luserli.github.io/vQAsha_dL/">
+        </link>
+        <updated>2023-06-06T15:30:14.000Z</updated>
+        <content type="html"><![CDATA[<p>Created: June 6, 2023 11:30 PM<br>
+Created by: Luser<br>
+Type: VM</p>
+<p>在系统功能中开启Hyper-V功能后，按下Windows键搜索打开Hyper-V Manager</p>
+<figure data-type="image" tabindex="1"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082305644.png" alt="" loading="lazy"></figure>
+<p>在右侧选择栏中选择新建虚拟机：</p>
+<figure data-type="image" tabindex="2"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082307436.png" alt="" loading="lazy"></figure>
+<p>按照提示设置虚拟机名称、存储位置、配置网络等选项，选中提前下载好的系统镜像文件，可以是Windows10、Windows11，Ubuntu系列，配置Win11环境时需要注意Win11对系统硬件的要求</p>
+<p>选择镜像文件进行系统安装：</p>
+<figure data-type="image" tabindex="3"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082311618.png" alt="" loading="lazy"></figure>
+<p>配置好后就可以到Hyper-V Manager的主页看到刚创建好的虚拟机，选中，进行连接，接下来就是系统安装环节了，系统安装好后就可以使用了。</p>
+<h2 id="注意事项"><strong>注意事项</strong></h2>
+<p>使用过程中需要注意的是，不能在没用保存CheckPoint的情况下直接关闭（TurnOff）VM，不然会导致虚拟机下次打不开，每次使用完VM后不要直接TurnOff，而是选中save按钮，保存当前VM状态并关机：</p>
+<figure data-type="image" tabindex="4"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082316146.png" alt="" loading="lazy"></figure>
+<h2 id="在创建好的windows-vm中通过创建共享文件夹的方式实现主机与vm之间的通信">在创建好的Windows VM中通过创建共享文件夹的方式实现主机与VM之间的通信</h2>
+<p>先对虚拟机进行设置，</p>
+<p>选中VM，点击 Hyper-V settings进行设置:</p>
+<figure data-type="image" tabindex="5"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082340979.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="6"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082339313.png" alt="" loading="lazy"></figure>
+<figure data-type="image" tabindex="7"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082342912.png" alt="" loading="lazy"></figure>
+<p>接下来进入VM，</p>
+<p>在VM中 新建文件夹 -&gt; 右键点击新建文件夹，打开属性 -&gt; 在Sharing(共享)中选择Advanced Sharing(高级共享设置)</p>
+<figure data-type="image" tabindex="8"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082326061.png" alt="" loading="lazy"></figure>
+<p>勾选分享：</p>
+<figure data-type="image" tabindex="9"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082328782.png" alt="" loading="lazy"></figure>
+<p>点击Permissions(权限)，勾选设置，选择OK</p>
+<figure data-type="image" tabindex="10"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082329402.png" alt="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082329402.png" loading="lazy"></figure>
+<p>回到属性界面，记下文件夹的网络路径：</p>
+<figure data-type="image" tabindex="11"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082331414.png" alt="" loading="lazy"></figure>
+<p>回到主机中，打开文件浏览器，在文件浏览器中点击“Map Network drive”（映射网络驱动器）</p>
+<figure data-type="image" tabindex="12"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082334107.png" alt="" loading="lazy"></figure>
+<p>将刚刚记下的网络路径输入：</p>
+<figure data-type="image" tabindex="13"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082336533.png" alt="" loading="lazy"></figure>
+<p>点击Finish进行连接，输入VM中的用户名和密码进行连接。</p>
+<p>连接成功后主机就可以访问到共享文件夹：</p>
+<figure data-type="image" tabindex="14"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/202306082337010.png" alt="" loading="lazy"></figure>
+<p>可以通过文件浏览器直接对VM中的文件进行访问，也可以通过代码编辑器直接在共享文件夹中新建、编辑、编译工程（就相当于直接当成一个普通的硬盘来用）。一些软件也可以放入VM中进行隔离测试。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Proteus 8.15 Professional 多种传感器仿真测试实验]]></title>
+        <id>https://luserli.github.io/QsuN7tCu3/</id>
+        <link href="https://luserli.github.io/QsuN7tCu3/">
+        </link>
+        <updated>2023-06-02T12:27:15.000Z</updated>
+        <content type="html"><![CDATA[<p>Created: June 2, 2023 10:20 PM<br>
+Created by: Luser<br>
+Type: MCU</p>
+<p><strong>实验环境：</strong></p>
+<ul>
+<li>Proteus 8.15 Professional</li>
+<li>Keil MDK V5.38.0.0</li>
+</ul>
+<p><strong>工程：</strong> <a href="https://www.aliyundrive.com/s/wszmhQKCZpX">点击下载</a></p>
+<p><strong>实验电路图：</strong></p>
+<figure data-type="image" tabindex="1"><img src="https://s2.loli.net/2023/06/03/s4yeD1nurxkpAdM.png" alt="01" loading="lazy"></figure>
+<h2 id="1-工程配置">1. 工程配置</h2>
+<p>时钟配置：</p>
+<figure data-type="image" tabindex="2"><img src="https://s2.loli.net/2023/06/03/sJSHawucMoT83dm.png" alt="07" loading="lazy"></figure>
+<h3 id="11-oled">1.1 OLED</h3>
+<p>在Cube MX中将PA4、PA5设置为GPIO_OUTPUT模式，修改User_Label为OLED_SCL和OLED_SDA:</p>
+<figure data-type="image" tabindex="3"><img src="https://s2.loli.net/2023/06/03/BienlZcOK4QxdwG.png" alt="02" loading="lazy"></figure>
+<h3 id="12-hcsr04超声波">1.2 HCSR04(超声波)</h3>
+<p>引脚设置和OLED的一样，先设置模式再修改User Label：</p>
+<figure data-type="image" tabindex="4"><img src="https://s2.loli.net/2023/06/03/TaQl83Cj5FXZURE.png" alt="04" loading="lazy"></figure>
+<h3 id="13-gp2d12红外线">1.3 GP2D12(红外线)</h3>
+<p>红外线传感器采用ADC采样读取电压值再转换为距离值的方式，开启ADC1_CH1：</p>
+<figure data-type="image" tabindex="5"><img src="https://s2.loli.net/2023/06/03/R4HNaQWKXJnehOC.png" alt="05" loading="lazy"></figure>
+<h3 id="14-l298驱动电机正反转">1.4 L298驱动电机正反转</h3>
+<p>设置两路PWM波对电机进行正反转控制：</p>
+<figure data-type="image" tabindex="6"><img src="https://s2.loli.net/2023/06/03/zmJg5FAqHG4o6SE.png" alt="06" loading="lazy"></figure>
+<p>设置PA8对蜂鸣器进行控制，PA11和PA12对LED进行控制。</p>
+<h3 id="15-按键">1.5 按键</h3>
+<p>设置按键中断：</p>
+<figure data-type="image" tabindex="7"><img src="https://s2.loli.net/2023/06/03/LGwrZSXkIfAt3aF.png" alt="08" loading="lazy"></figure>
+<h3 id="16-串口">1.6 串口</h3>
+<p>使用串口一：</p>
+<figure data-type="image" tabindex="8"><img src="https://s2.loli.net/2023/06/03/jrHWlMI5Dpk87QB.png" alt="09" loading="lazy"></figure>
+<h3 id="17-定时器">1.7 定时器</h3>
+<p>TIM2用于输入捕获，TIM3用于定时控制：</p>
+<figure data-type="image" tabindex="9"><img src="https://s2.loli.net/2023/06/03/mjbte5Y6J3EdQoP.png" alt="10" loading="lazy"></figure>
+<figure data-type="image" tabindex="10"><img src="https://s2.loli.net/2023/06/03/l71G9eIXwjibAq8.png" alt="11" loading="lazy"></figure>
+<p>生成工程，将<code>.c</code>和<code>.h</code>文件移进工程文件夹中后在Keil中将一系列的<code>.c</code>文件添加进工程中：</p>
+<figure data-type="image" tabindex="11"><img src="https://s2.loli.net/2023/06/03/QUjAoSpx1NIZtEP.png" alt="03" loading="lazy"></figure>
+<h2 id="2-代码编写">2. 代码编写</h2>
+<h3 id="21-导入头文件">2.1 导入头文件</h3>
+<pre><code class="language-c">/* USER CODE BEGIN Includes */
+#include &quot;sys.h&quot;
+#include &quot;delay.h&quot;
+#include &quot;iic.h&quot;
+#include &quot;oled.h&quot;
+#include &quot;bmp.h&quot;
+#include &quot;gp2d12.h&quot;
+#include &quot;hc_sr04.h&quot;
+#include &quot;ds18b20.h&quot;
+
+// 输入捕获模式选择
+#define IC_MODE HAL_GPIO_ReadPin(IC_MODE_GPIO_Port, IC_MODE_Pin)
+
+/* USER CODE END Includes */
+</code></pre>
+<h3 id="22-开机初始化">2.2 开机初始化</h3>
+<pre><code class="language-c">  /* USER CODE BEGIN 2 */
+  delay_init(72);
+  OLED_Init();
+  BMP_Init();
+  HC_SR04_Init(1);
+  //开启定时器三计时
+  HAL_TIM_Base_Start_IT(&amp;htim3);
+  //开启PWM波
+  HAL_TIM_PWM_Start(&amp;htim1, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&amp;htim1, TIM_CHANNEL_3);
+  __HAL_TIM_SET_COMPARE(&amp;htim1, TIM_CHANNEL_2, PWM1);
+  __HAL_TIM_SET_COMPARE(&amp;htim1, TIM_CHANNEL_3, PWM2);
+  //输入捕获
+	long long temp = 0;
+  if(!IC_MODE){
+    HAL_TIM_IC_Start_IT(&amp;htim2,TIM_CHANNEL_1);  //开启TIM3通道1的捕获中断
+    __HAL_TIM_ENABLE_IT(&amp;htim2,TIM_IT_UPDATE);  //开启TIM3的更新中断
+    OLED_ShowString(72, 4, &quot;no&quot;, 16);
+  }
+
+  // DS18B20部分一直无法检测到
+  // float ttemp = 0;
+  // while (DS18B20_Init())
+  // {
+  //   Printf(&quot;DS18B20 checked failed!!!\r\n&quot;);
+  //   HAL_Delay(100 - 1);
+  // }
+  // Printf(&quot;DS18B20 checked success!!!\r\n&quot;);
+	
+  // 开机蜂鸣器响三下，LED1闪三下
+  // BUZ_3();
+
+  Printf(&quot;Experiment Start!\r\n&quot;);
+  Printf(&quot;Lucky Lu\r\n&quot;);
+  Printf(&quot;2023\\06\\02\r\n&quot;);
+  OLED_ShowString(0, 0, &quot;BMP_Temp:&quot;, 16);
+  OLED_ShowString(0, 2, &quot;BMP_hPa:&quot;, 16);
+  OLED_ShowString(0, 4, &quot;Distance:&quot;, 16);
+  OLED_ShowString(0, 6, &quot;GP_Distance:&quot;, 16);
+  /* USER CODE END 2 */
+</code></pre>
+<h3 id="23-while循环">2.3 while循环</h3>
+<pre><code class="language-c">  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+    // ttemp = DS18B20_Get_Temp();
+    // if(ttemp)
+    //   Printf(&quot;%d\r\n&quot;,ttemp);
+		
+	// 读取BMP
+    BMP_ReadCalibrationData();
+    BMP_UncompemstatedToTrue();
+	// 读取红外线测距值
+    float gp_distance = get_distance();
+	// 显示
+    OLED_ShowNumber(72, 0, bmp180.Temp / 10, 2, 16);
+    OLED_ShowChar(88, 0, '.', 16);
+    OLED_ShowNumber(96, 0, bmp180.Temp, 1, 16);
+    OLED_ShowNumber(64, 2, bmp180.p / 100, 4, 16);
+    OLED_ShowChar(96, 2, '.', 16);
+    OLED_ShowNumber(104, 2, bmp180.p, 2, 16);
+    OLED_ShowNumber(96, 6, gp_distance, 2, 16);
+	// 串口输入中断
+    HAL_UART_Receive_IT(&amp;huart1, UART1RxBuffer, 1);
+	//红外线测距小于等于20则蜂鸣器响且LED1亮
+    if (gp_distance &lt;= 20){
+      BUZ_SET;LED1_SET;
+    }else{
+      BUZ_RESET;LED1_RESET;
+    }
+	// 读取PB4的值判断TIM2的输入捕获使用方式
+	// 0：捕获LED2高电平时间
+	// 1：进行超声波测距
+    if(IC_MODE){
+      float distance = Get_Distance();
+      OLED_ShowNumber(72, 4, distance, 2, 16);
+    }else if(TIM2CH1_CAP_STA &amp; 0X80){   //完成1次高电平捕获
+      temp = TIM2CH1_CAP_STA &amp; 0X3F;
+      temp *= 0xffff;        //溢出总时间
+      temp += TIM2CH1_CAP_VAL;  //总的高电平时间
+      Printf(&quot;High level duration: %ld ms\r\n&quot;,(int)(temp &amp; 0xFFFFFFFF)/1000);
+      TIM2CH1_CAP_STA = 0;    //准备下一次捕获
+    }
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+  }
+</code></pre>
+<h3 id="24-串口中断-按键中断-输入捕获">2.4 串口中断、按键中断、输入捕获</h3>
+<pre><code class="language-c">/* USER CODE BEGIN 0 */
+// 串口
+uint8_t UART1RxBuffer[1];
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart-&gt;Instance == USART1)
+  {
+    HAL_UART_Transmit(huart, UART1RxBuffer, 1, 100);
+  }
+  HAL_UART_Receive_IT(huart, UART1RxBuffer, 1);
+}
+// 按键中断
+int PWM1=500,PWM2=0;
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+  switch(GPIO_Pin){
+    case GPIO_PIN_0:PWM1=500;PWM2=0;break;//正转模式
+    case GPIO_PIN_1:PWM1=0;PWM2=500;break;//反转模式
+    case GPIO_PIN_2://加速
+      PWM2==0?PWM1+=100:(PWM2+=100);
+      if(PWM1&gt;=1000)PWM1=1000;
+      if(PWM2&gt;=1000)PWM2=1000;
+      break;
+    case GPIO_PIN_3://减速
+      PWM2==0?PWM1-=100:(PWM2-=100);
+      if(PWM1&lt;=0)PWM1=0;
+      if(PWM2&lt;=0)PWM2=0;
+      break;
+    case IC_MODE_Pin:
+      HAL_TIM_IC_Start_IT(&amp;htim2,TIM_CHANNEL_1);  //开启TIM2通道1的捕获中断
+      __HAL_TIM_ENABLE_IT(&amp;htim2,TIM_IT_UPDATE);  //开启TIM2的更新中断
+      OLED_ShowString(72, 4, &quot;no&quot;, 16);
+      break;
+  }
+  __HAL_TIM_SET_COMPARE(&amp;htim1, TIM_CHANNEL_2, PWM1);
+  __HAL_TIM_SET_COMPARE(&amp;htim1, TIM_CHANNEL_3, PWM2);
+}
+
+// 输入捕获
+/* TIM2CH1_CAP_STA 各数据位说明
+** bit7   捕获完成标志
+** bit6   捕获到高电平标志
+** bit5~0 捕获高电平后定时器溢出的次数*/
+uint8_t TIM2CH1_CAP_STA = 0;
+uint16_t TIM2CH1_CAP_VAL;
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim == &amp;htim2)
+  {
+    if((TIM2CH1_CAP_STA &amp; 0X80) == 0){  //还未成功捕获
+      if(TIM2CH1_CAP_STA &amp; 0X40){   //已经捕获到高电平
+        if((TIM2CH1_CAP_STA &amp; 0X3F) == 0X3F){ //高电平时间太长了
+          TIM2CH1_CAP_STA |= 0X80;      //标记为完成一次捕获
+          TIM2CH1_CAP_VAL = 0XFFFF;     //计数器值
+        }
+        else
+          TIM2CH1_CAP_STA++;    //溢出次数+1      
+      } 
+    }
+  }
+  if (htim == &amp;htim3)
+  {
+    LED2_TOG;
+  }
+}
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim){
+  if (htim == &amp;htim2){
+    if((TIM2CH1_CAP_STA &amp; 0X80) == 0){  //还未成功捕获
+      if(TIM2CH1_CAP_STA &amp; 0X40){   //捕获到上升沿后条件为真
+        TIM2CH1_CAP_STA |= 0X80;  //标记为完成一次高电平捕获
+        TIM2CH1_CAP_VAL = HAL_TIM_ReadCapturedValue(&amp;htim2,TIM_CHANNEL_1);  //设置上升沿捕获
+        TIM_RESET_CAPTUREPOLARITY(&amp;htim2,TIM_CHANNEL_1);  //清除原来的设置  
+        TIM_SET_CAPTUREPOLARITY(&amp;htim2,TIM_CHANNEL_1,TIM_ICPOLARITY_RISING);  //设置上升沿捕获
+      }
+      else{
+        TIM2CH1_CAP_STA = 0;
+        TIM2CH1_CAP_VAL = 0;
+        TIM2CH1_CAP_STA |= 0X40;  //标记捕获到上升沿
+        __HAL_TIM_DISABLE(&amp;htim2);  //关闭定时器
+        __HAL_TIM_SET_COUNTER(&amp;htim2,0);   //计数器值清零
+        TIM_RESET_CAPTUREPOLARITY(&amp;htim2,TIM_CHANNEL_1);  //清除原来的设置      
+        TIM_SET_CAPTUREPOLARITY(&amp;htim2,TIM_CHANNEL_1,TIM_ICPOLARITY_FALLING); //设置下降沿捕获
+        __HAL_TIM_ENABLE(&amp;htim2); //使能定时器 
+      } 
+    }
+  }
+} 
+/* USER CODE END 0 */
+</code></pre>
+<h2 id="3-函数说明">3. 函数说明</h2>
+<h3 id="31-printf">3.1 <code>Printf</code></h3>
+<p>实验中使用的串口输出函数<code>Printf()</code>定义在<code>usart.c</code>中，定义如下：</p>
+<pre><code class="language-c">/* USER CODE BEGIN 1 */
+
+char uart_buffer[UART_BUFFER_SIZE];
+int uart_buffer_pos = 0;
+
+void Printf(const char *format, ...)
+{
+  char buffer[100];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buffer, sizeof(buffer), format, args);
+  HAL_UART_Transmit(&amp;huart1, (uint8_t *)buffer, strlen(buffer), HAL_MAX_DELAY);
+  va_end(args);
+}
+</code></pre>
+<p>其在<code>usart.h</code>中被调用：</p>
+<pre><code class="language-c">/* USER CODE BEGIN Includes */
+#include &lt;stdio.h&gt;
+#include &lt;stdarg.h&gt;
+#include &lt;string.h&gt;
+void Printf(const char *format, ...);
+</code></pre>
+<h3 id="32-get_distancegp2d12">3.2 <code>get_distance</code>（GP2D12）</h3>
+<p>该函数位于<code>gp2d12.c</code>中，其调用的ADC相关函数位于<code>adc.c</code>中：</p>
+<pre><code class="language-c">// gp2d12.h
+#ifndef __GP2D12_H
+#define __GP2D12_H
+
+float vol2dis(float voltage);
+float get_distance(void);
+
+#endif	
+
+
+// gp2d12.c
+#include &quot;gp2d12.h&quot;
+#include &quot;adc.h&quot;
+#include  &quot;math.h&quot;//使用pow函数
+
+float vol2dis(float voltage) { return 28.69643063188021 * pow(voltage, -1.153681035551901) - 0.15368103480916; }
+
+float get_distance(){
+    uint16_t adcx;
+    adcx = Get_Adc_Average(ADC_CHANNEL_1, 20);
+    float voltage = (float)adcx * (5.0 / 4096);
+    float dp_distance = vol2dis(voltage);
+}
+</code></pre>
+<pre><code class="language-c">//adc.h
+/* USER CODE BEGIN Prototypes */
+uint16_t Get_Adc(uint32_t ch);          
+uint16_t Get_Adc_Average(uint32_t ch,uint8_t times);
+/* USER CODE END Prototypes */
+
+//adc.c
+/* USER CODE BEGIN 1 */
+
+uint16_t Get_Adc(uint32_t ch)   
+{
+    ADC_ChannelConfTypeDef ADC1_ChanConf;
+    
+    ADC1_ChanConf.Channel=ch;                                  
+    ADC1_ChanConf.Rank=1;                                       
+    ADC1_ChanConf.SamplingTime=ADC_SAMPLETIME_239CYCLES_5;        
+    // ADC1_ChanConf.Offset=0;                 
+    HAL_ADC_ConfigChannel(&amp;hadc1,&amp;ADC1_ChanConf);        
+  
+    HAL_ADC_Start(&amp;hadc1);                              
+  
+    HAL_ADC_PollForConversion(&amp;hadc1,10);                
+ 
+  return (uint16_t)HAL_ADC_GetValue(&amp;hadc1);          
+}
+uint16_t Get_Adc_Average(uint32_t ch,uint8_t times)
+{
+  uint32_t temp_val=0;
+  uint8_t t;
+  for(t=0;t&lt;times;t++)
+  {
+    temp_val+=Get_Adc(ch);
+    HAL_Delay(5);
+  }
+  return temp_val/times;
+} 
+/* USER CODE END 1 */
+</code></pre>
+<h4 id="321-vol2dis">3.2.1 <code>vol2dis</code></h4>
+<p><code>vol2dis</code>函数的作用是将ADC获取到的电压值转换为距离值，是根据Proteus仿真采集到的数据使用线性函数拟合而来，具体的<code>python</code>程序如下：</p>
+<pre><code class="language-python">from pylab import *
+from scipy import optimize
+mpl.rcParams['font.sans-serif'] = ['SimHei']
+
+#需要拟合的函数
+def f_1(x, A, B, C):
+    return A * pow(x,C) + B
+
+x_axis_data = [2.35, 2.17, 2.02, 1.89, 1.78, 1.68, 1.59, 1.51, 1.44, 1.38, 1.33, 1.27, 1.22, 1.18, 1.14, 1.10,
+               0.67, 0.66, 0.64, 0.63, 0.62, 0.61, 0.60, 0.59, 0.58, 0.57, 0.56, 
+                0.41, 0.41, 0.42, 0.42, 0.43, 0.43, 0.43, 0.44, 0.45, 0.45, 0.46]
+y_axis_data = [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0, 25.0,
+                45.0, 46.0, 47.0, 48.0, 49.0, 50.0, 51.0, 52.0, 53.0, 54.0, 55.0,
+                  80.0, 79.0, 78.0, 77.0, 76.0, 75.0, 74.0, 73.0, 72.0, 71.0, 70.0]
+
+plt.figure('test')
+plt.title('GP2D12输出电压与距离关系')
+plt.scatter(x_axis_data, y_axis_data, 10, &quot;red&quot;)
+
+A1, B1, C1 = optimize.curve_fit(f_1, x_axis_data, y_axis_data)[0]
+x1 = np.arange(0, 100, 0.01)#建立一串0~100的一维数据，步长为0.01
+y1 = A1 * pow(x1,C1) + B1
+print(&quot;A=&quot;+str(A1))
+print(&quot;B=&quot;+str(B1))
+print(&quot;C=&quot;+str(C1))
+plt.plot(x1, y1, 6, &quot;blue&quot;)
+
+for x, y in zip(x_axis_data, y_axis_data):
+    plt.text(x, y+0.3, '%.0f' % y, ha='center', va='bottom', fontsize=10.5)
+
+
+plt.xlim(0, 3)
+plt.ylim(0, 80)
+plt.xlabel('电压')
+plt.ylabel('距离')
+
+# plt.savefig('拟合直线.jpg')  # 保存该图片
+plt.show()
+</code></pre>
+<p>OutPut:</p>
+<pre><code class="language-c">y1 = A1 * pow(x1,C1) + B1
+A=28.69643063188021
+B=-0.7567939194670654
+C=-1.15368103480916
+</code></pre>
+<figure data-type="image" tabindex="12"><img src="https://s2.loli.net/2023/06/03/oXvqGV6CHscL798.jpg" alt="12" loading="lazy"></figure>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[正点原子F429IGT6例程IIC实验的CubeMX工程移植]]></title>
+        <id>https://luserli.github.io/knDUJnwh4/</id>
+        <link href="https://luserli.github.io/knDUJnwh4/">
+        </link>
+        <updated>2023-04-23T02:00:05.000Z</updated>
+        <content type="html"><![CDATA[<p>Created: April 23, 2023 10:20 AM<br>
+Created by: Luser<br>
+Type: MCU</p>
+<p>本次实验MDK工程下载地址：<a href="https://files.catbox.moe/fxjds0.rar">点击下载</a></p>
+<h2 id="实验向导">实验向导</h2>
+<p><strong>实验器材:</strong></p>
+<p>阿波罗STM32F429开发板</p>
+<p><strong>实验目的:</strong></p>
+<p>学习STM32模拟IIC的使用,驱动24C02实现EEPROM数据读写.</p>
+<p><strong>硬件资源:</strong></p>
+<ol>
+<li>DS0(连接在PB1)</li>
+<li>串口1(波特率:115200,PA9/PA10连接在板载USB转串口芯片CH340上面)</li>
+<li>ALIENTEK 2.8/3.5/4.3/7寸LCD模块(包括MCU屏和RGB屏,都支持)</li>
+<li>按键KEY0(PH3)/KEY1(PH2)</li>
+<li>24C02(IIC连接在PH4/PH5上面)</li>
+</ol>
+<p><strong>实验现象:</strong></p>
+<p>本实验通过KEY1按键来控制24C02的写入，通过另外一个按键KEY0来控制24C02的读取。并在LCD模块上面显示相关信息。<strong>由于缺少LCD屏，故使用SPI接口的OLED屏对实验内容进行显示</strong></p>
+<h2 id="硬件接线">硬件接线</h2>
+<p>首先将七脚的SPI OLED屏接到下图所示位置：</p>
+<figure data-type="image" tabindex="1"><img src="https://s2.loli.net/2023/06/03/5OrjT8MHz6CFtAu.jpg" alt="01" loading="lazy"></figure>
+<figure data-type="image" tabindex="2"><img src="https://s2.loli.net/2023/06/03/qrcKDk98doGLhVZ.jpg" alt="02" loading="lazy"></figure>
+<p>之所以接到这是因为这里刚好有GND和VDD引脚与OLED的GND和VCC相对应，其余的引脚则只需要将对应的GPIO口设置为相应功能就可以直接将OLED屏插上去进行使用了。</p>
+<p>对应的引脚需要查看主板的原理图，这里列出引脚对应的GPIO：</p>
+<table>
+<thead>
+<tr>
+<th>OLED引脚名</th>
+<th>功能</th>
+<th>主板上对应引脚名</th>
+<th><strong>对应的GPIO口</strong></th>
+<th>User Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D0</td>
+<td>spi(CLK)  [SCL]</td>
+<td>BL</td>
+<td>PB5</td>
+<td>OLED_SCL</td>
+</tr>
+<tr>
+<td>D1</td>
+<td>spi(MOSI)  [SDA]</td>
+<td>D15</td>
+<td>PD10</td>
+<td>OLED_SDA</td>
+</tr>
+<tr>
+<td>RES</td>
+<td>复位引脚拉高</td>
+<td>D13</td>
+<td>PD8</td>
+<td>OLED_RES</td>
+</tr>
+<tr>
+<td>DC</td>
+<td>低电平写命令， 高电平写数据</td>
+<td>D11</td>
+<td>PE14</td>
+<td>OLED_DC</td>
+</tr>
+<tr>
+<td>CS</td>
+<td>片选</td>
+<td>D6</td>
+<td>PE9</td>
+<td>OLED_CS</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cubemx初始化配置">CubeMX初始化配置</h2>
+<h3 id="设置各个gpio引脚"><strong>设置各个GPIO引脚</strong></h3>
+<blockquote>
+<p>OLED、开关KEY0、KEY1、KEY_UP、LED0、LED1</p>
+</blockquote>
+<figure data-type="image" tabindex="3"><img src="https://s2.loli.net/2023/06/03/dlZn9m5FIBgrsDi.png" alt="03" loading="lazy"></figure>
+<p>注意KEY0和KEY1是上拉电阻，KEY_UP是下拉电阻</p>
+<h3 id="设置iic"><strong>设置IIC</strong></h3>
+<blockquote>
+<p>一定要对应到PH4/PH5上，因为稍后要对24C02进行驱动，而它的IIC连接在PH4/PH5上面</p>
+</blockquote>
+<blockquote>
+<p>注意例程中使用的是软件模拟的IIC，并没有开启硬件IIC，所以在CubeMX中只要设置为输出</p>
+</blockquote>
+<figure data-type="image" tabindex="4"><img src="https://s2.loli.net/2023/06/03/4SHakp2rFqABKNZ.png" alt="04" loading="lazy"></figure>
+<h3 id="设置rcc与时钟频率"><strong>设置RCC与时钟频率</strong></h3>
+<figure data-type="image" tabindex="5"><img src="https://s2.loli.net/2023/06/03/Q495NzdO6FSYycv.png" alt="05" loading="lazy"></figure>
+<h2 id="程序移植">程序移植</h2>
+<p>直接将例程中的头文件和源文件移植到工程中就可以使用，当然也可以只移植部分代码，比如sys.c中的宏定义可以直接在<code>main.c</code>中进行定义，之后就只需要把<code>#include “sys.h”</code>换成<code>#include “main.h”</code>就好了，至于<code>delay.c</code>中的函数则可以在用到其中的延时函数时直接用<code>HAL_Delay()</code>函数平替掉，这里为了省事就不进行这些操作，直接移植库：</p>
+<figure data-type="image" tabindex="6"><img src="https://s2.loli.net/2023/06/03/XTsykSDcANWYGgw.png" alt="06" loading="lazy"></figure>
+<h3 id="主函数编写">主函数编写</h3>
+<pre><code class="language-c">//main.c文件部分代码
+//只包含宏定义与main函数
+#include &quot;main.h&quot;
+#include &quot;gpio.h&quot;
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include &quot;sys.h&quot;
+#include &quot;key.h&quot;
+#include &quot;delay.h&quot;
+#include &quot;oled.h&quot;
+#include &quot;24cxx.h&quot;
+#define LED0 PBout(1)   //LED0
+#define LED1 PBout(0)   //LED1
+/* USER CODE END Includes */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+
+//要写入到24c02的字符串数组
+const u8 TEXT_Buffer[]={&quot;STM32 IIC TEST&quot;};
+#define T_SIZE sizeof(TEXT_Buffer)
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  /* USER CODE BEGIN 2 */
+  delay_init(180);                //初始化delay
+  OLED_Init();	                //初始化OLED
+  AT24CXX_Init();				    //初始化IIC
+  u8 key;
+	u16 i=0;
+	u8 datatemp[T_SIZE];
+  OLED_Clear();
+  OLED_ShowString(0,0,&quot;F429 IIC TEST&quot;,12);
+  OLED_ShowString(0,1,&quot;KEY1:Write&quot;,12);	
+  OLED_ShowString(0,2,&quot;KEY0:Read&quot;,12);	
+  while(AT24CXX_Check())//检测不到24c02
+	{
+		OLED_ShowString(0,3,&quot;24C02 Check Failed!&quot;,12);
+		delay_ms(500);
+		OLED_ShowString(0,3,&quot;Please Check!&quot;,12);
+		delay_ms(500);
+		LED0=!LED0;//DS0闪烁
+	}
+	OLED_ShowString(0,3,&quot;24C02 Ready!&quot;,12); 
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+		key=KEY_Scan(0);
+		if(key==KEY1_PRES)//KEY1按下,写入24C02
+		{
+			OLED_Clear();
+			OLED_ShowString(0,0,&quot;Start Write....&quot;,12);
+			AT24CXX_Write(0,(u8*)TEXT_Buffer,T_SIZE);
+			OLED_ShowString(0,1,&quot;Write Finished!&quot;,12);//提示传送完成
+		}
+		if(key==KEY0_PRES)//KEY0按下,读取字符串并显示
+		{
+      OLED_Clear();
+			OLED_ShowString(0,0,&quot;Start Read...&quot;,12);
+			AT24CXX_Read(0,datatemp,T_SIZE);
+			OLED_ShowString(0,1,&quot;The Data Is:&quot;,12);//提示传送完成
+			OLED_ShowString(0,2,datatemp,12);//显示读到的字符串
+		}
+		i++;
+		delay_ms(10);
+		if(i==20)
+		{
+			LED0=!LED0;//提示系统正在运行
+			i=0;
+		}
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+  }
+  /* USER CODE END 3 */
+}
+</code></pre>
+<h2 id="实验现象">实验现象</h2>
+<ol>
+<li>
+<p>检测到24c02</p>
+<figure data-type="image" tabindex="7"><img src="https://s2.loli.net/2023/06/03/RV6vQTah1rgwA4N.jpg" alt="06" loading="lazy"></figure>
+</li>
+<li>
+<p>按下KEY1，写入数据</p>
+<figure data-type="image" tabindex="8"><img src="https://s2.loli.net/2023/06/03/IV694dR2vWDbCwB.jpg" alt="Untitled" loading="lazy"></figure>
+</li>
+<li>
+<p>按下KEY0，读取数据</p>
+<figure data-type="image" tabindex="9"><img src="https://s2.loli.net/2023/06/03/vLgXArFQyNMGszq.jpg" alt="Untitled" loading="lazy"></figure>
+<figure data-type="image" tabindex="10"><img src="https://files.catbox.moe/3n3dve.gif" alt="https://files.catbox.moe/3n3dve.gif" loading="lazy"></figure>
+</li>
+</ol>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[树莓派&&T265--数据读取与串口传输]]></title>
+        <id>https://luserli.github.io/3zyCbX8Zl/</id>
+        <link href="https://luserli.github.io/3zyCbX8Zl/">
+        </link>
+        <updated>2023-04-04T03:30:29.000Z</updated>
+        <content type="html"><![CDATA[<p>Created: April 4, 2023 11:13 AM<br>
+Created by: Luser<br>
+Type: AI</p>
+<p>在树莓派上部署好T265后，有多种方式可以调用T265的数据信息，例如使用ROS调用，使用python、C++通过SDK提供的API调用。</p>
+<p>这里使用C++调用SDK API的方式来获取数据信息。</p>
+<p>具体实现方式源代码中注释写的很详细，这里不对代码进行分析，只介绍大概思路和具体实现过程。</p>
+<p>项目地址：</p>
+<p><a href="https://github.com/luserli/raspberry_usart_t265">https://github.com/luserli/raspberry_usart_t265</a></p>
+<h2 id="使用c调用sdk数据并进行输出打印">使用C++调用SDK数据并进行输出打印</h2>
+<p>首先需要解决如何获取SDK数据的问题,</p>
+<p>一个快速了解SDK中API的使用方法是直接翻看官方例程：<a href="https://dev.intelrealsense.com/docs/rs-hello-realsense">官网例程</a> (这里主要看C/C++版，想用python的也可以自己看)</p>
+<p>通过例程给的代码可以很快的学习到如何调用API获取数据，只需要将获取到的数据直接使用cout就可以在终端查看到输出。</p>
+<p>如果想要查看到图像数据则可以安装编译OpenCV库来处理图像数据，OpenCV库的安装直接参照官方文档的教程操作就好（编译过程需要很长时间，要耐心等待）：<a href="https://docs.opencv.org/4.x/d7/d9f/tutorial_linux_install.html">OpenCV在Linux上的安装教程文档</a></p>
+<h2 id="操作树莓派的gpio实现串口通信">操作树莓派的GPIO实现串口通信</h2>
+<h3 id="gpio的调用">GPIO的调用</h3>
+<p>使用 <code>wiringPi</code>这个库可以对树莓派的GPIO口进行一系列操作，安装方法参照 <code>wiringPi</code>的官方文档：<a href="http://wiringpi.com/download-and-install/">Raspberry Pi | Wiring</a></p>
+<p>使用wiringPi操作树莓派的gpio这个方法在Ubuntu22.04桌面系统上实测是可行的，其余方法则需再行摸索。</p>
+<h3 id="使用串口将t265的数据传输到其它设备">使用串口将T265的数据传输到其它设备</h3>
+<p>如果只需要打印到上位机看数据则直接使用 <code>wiringPi</code>中的 <code>serialPrintf</code>函数打印原始数据就好了。这里需要将数据编辑成一定格式之后再传输给单片机来进行通信，需要将原本的float数据转换成int类型，再转换成十六进制的形式，并且每一个数据都需要传输其高八位数据和低八位数据，且一次数据传输需要以特定的针头开始，以特定的针尾截止。</p>
+<p>数据格式如下：</p>
+<p><code>&lt;0xaa 0x29 0x05 0xff 0x06 高八位 低八位 高八位 低八位 ____ ____ ...... 0x00&gt;</code></p>
+<p>前五个为针头，最后一个为针尾。</p>
+<p>故代码中有一部分是对数据数组进行操作。</p>
+<p>树莓派本身含有两个串口一个是mini串口，一个是硬件串口，关于其介绍和具体需要进行的操作请参照这两篇文章：</p>
+<p><a href="https://blog.csdn.net/wanggao_1990/article/details/103702563">树莓派 gpio / 串口通信_树莓派串口通信_aworkholic的博客-CSDN博客</a></p>
+<p><a href="https://blog.csdn.net/qq_41208487/article/details/120863092">树莓派4B没有serial0或ttyS0，serial0没有映射到ttyS0，serial0和serial1调换映射_树莓派ttys0_红衰绿老的博客-CSDN博客</a></p>
+<figure data-type="image" tabindex="1"><img src="https://s2.loli.net/2023/04/04/5MtpsQwYJjbxCfg.png" alt="https://s2.loli.net/2023/04/04/5MtpsQwYJjbxCfg.png" loading="lazy"></figure>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[树莓派4B部署Intel Realsense T265]]></title>
+        <id>https://luserli.github.io/J1IHItQVm/</id>
+        <link href="https://luserli.github.io/J1IHItQVm/">
+        </link>
+        <updated>2023-03-30T16:00:52.000Z</updated>
+        <content type="html"><![CDATA[<p>Created: March 31, 2023 6:44 PM<br>
+Created by: Luser<br>
+Type: AI</p>
+<p>如果树莓派内存空间不够，担心编译时内存不足，可以参考这篇文章里的内容扩大swap分区后再操作<a href="https://zhuanlan.zhihu.com/p/185792650">【20-8-7】树莓派上部署英特尔深度相机IntelRealsense T265 - 知乎 (zhihu.com)</a></p>
+<p><strong>建议使用Ubuntu系列系统</strong></p>
+<p>参考博文找到的简易步骤：</p>
+<h2 id="安装依赖">安装依赖</h2>
+<pre><code class="language-python">sudo apt-get install git cmake libssl-dev libusb-1.0-0-dev pkg-config libgtk-3-dev libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev
+</code></pre>
+<h2 id="下载realsense-sdk">下载Realsense SDK</h2>
+<p>由于T265已经停产了，所以realsense v2.54.1 以后不再支持T265，故需下载 2.53.1版：</p>
+<pre><code class="language-python">git clone -b v2.53.1 https://github.com/IntelRealSense/librealsense.git
+</code></pre>
+<h2 id="编译准备">编译准备</h2>
+<pre><code class="language-python">cd librealsense
+mkdir build &amp;&amp; cd build
+cmake ..
+</code></pre>
+<p>运行cmake时不要自行设置参数！！不然很可能会不能运行相机。</p>
+<h2 id="编译与安装">编译与安装</h2>
+<pre><code class="language-python">make
+sudo make install
+</code></pre>
+<p>树莓派使用<code>make -j</code>进行多线程编译可能有点压力，使用单线程编译就好</p>
+<h2 id="设置udev规则">设置udev规则</h2>
+<p>运行项目中<code>scripts</code>目录下的<code>setup_udev_rules.sh</code>就好：</p>
+<pre><code class="language-python">sudo sh ./scripts/setup_udev_rules.sh
+</code></pre>
+<h2 id="验证安装"><strong><strong>验证安装</strong></strong></h2>
+<p>将T265通过USB连接到树莓派上（要连蓝色接口的USB3.0），然后运行下面这个代码。</p>
+<pre><code>rs-enumerate-devices
+</code></pre>
+<p>只要能输出信息，而不是说没有设备插入，那就是成功了。</p>
+<h2 id="测试">测试</h2>
+<pre><code class="language-python">sudo realsense-viewer
+</code></pre>
+<p>也可以不使用sudo权限，但可能会有权限错误出现。</p>
+<p>成功运行以后可以得到如下的界面效果：</p>
+<figure data-type="image" tabindex="1"><img src="https://s2.loli.net/2023/06/10/ZtjWoh8LYD3AJUg.png" alt="Untitled" loading="lazy"></figure>
+<h2 id="错误排查">错误排查</h2>
+<ul>
+<li><code>SDK</code>的<code>realsense-viewer</code>在读取<code>T265</code>数据时需要重新插拔<code>T265</code>才能正确识别，</li>
+</ul>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[使用STM32CubeMX生成的Makefile工程中使用printf函数在串口打印输出的问题]]></title>
+        <id>https://luserli.github.io/ol0eWNJCJ/</id>
+        <link href="https://luserli.github.io/ol0eWNJCJ/">
+        </link>
+        <updated>2023-03-18T15:15:45.000Z</updated>
+        <content type="html"><![CDATA[<p>Created: March 18, 2023 9:04 AM<br>
+Created by: Luser<br>
+Type: AI</p>
+<h2 id="在工程中引入printf输出函数的曲线方法重定义一个输出函数">在工程中引入printf输出函数的曲线方法—重定义一个输出函数</h2>
+<p>在使用STM32CubeMX生成的makefile工程中，需要进行一些配置才能使用printf函数。具体步骤如下：</p>
+<ol>
+<li>
+<p>确保你的代码中包含了stdio.h头文件，它包含了printf函数的定义和相关宏定义。</p>
+</li>
+<li>
+<p>在代码中添加如下语句：</p>
+</li>
+</ol>
+<pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdarg.h&gt;
+void USART_Printf(const char *format, ...) {
+  char buffer[100];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buffer, sizeof(buffer), format, args);
+  HAL_UART_Transmit(&amp;huart1, (uint8_t *) buffer, strlen(buffer), HAL_MAX_DELAY);
+  va_end(args);
+}
+</code></pre>
+<p>该函数将printf格式化字符串中的内容通过串口输出。当你需要输出printf格式化字符串中的内容时，调用该函数即可：</p>
+<pre><code class="language-c">USART_Printf(&quot;Hello, world! x = %d\n&quot;, x);
+</code></pre>
+<p>其中，USART_Printf函数可以根据实际情况修改，比如修改串口句柄为你所使用的串口句柄。</p>
+<h2 id="对于usart_printf函数不能正常输出long-long-类型变量的问题">对于USART_Printf函数不能正常输出long long 类型变量的问题</h2>
+<p>USART_Printf函数是一个串口打印输出函数，它是基于printf函数实现的。对于long long类型的变量，在使用printf函数输出时，需要使用&quot;%lld&quot;格式字符串。但是，在某些编译器中，&quot;%lld&quot;格式字符串可能不被支持，导致输出异常。</p>
+<p>为了解决这个问题，可以使用以下两种方法：</p>
+<ol>
+<li>使用&quot;%ld&quot;格式字符串输出long long类型的变量。&quot;%ld&quot;格式字符串用于输出长整型变量，可以兼容long long类型的变量。例如：</li>
+</ol>
+<pre><code class="language-c">long long x = 1234567890123;
+USART_Printf(&quot;x = %ld\n&quot;, x);
+</code></pre>
+<ol>
+<li>将long long类型的变量拆分成两个int类型的变量进行输出。例如：</li>
+</ol>
+<pre><code class="language-c">long long x = 1234567890123;
+USART_Printf(&quot;x = %ld%ld\n&quot;, (int)(x &gt;&gt; 32), (int)(x &amp; 0xFFFFFFFF));
+</code></pre>
+<p>这种方法将long long类型的变量分为高32位和低32位两个int类型的变量进行输出。注意，使用这种方法时需要确保long long类型的变量不会溢出int类型的范围。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Pruning[NISP'15] paper code reproduction]]></title>
+        <id>https://luserli.github.io/OwJh8dwA2/</id>
+        <link href="https://luserli.github.io/OwJh8dwA2/">
+        </link>
+        <updated>2023-02-22T15:44:12.000Z</updated>
+        <content type="html"><![CDATA[<p>Created: February 22, 2023 8:37 PM<br>
+Created by: Luser<br>
+Type: AI、model compression</p>
+<p>使用基于numpy构建的全连接层神经网络来对这篇paper进行简单的实验复现，源码： <a href="https://github.com/luserli/pruning">Github</a></p>
+<ul>
+<li>
+<p>Paper：<a href="https://arxiv.org/abs/1506.02626v3">[1506.02626v3] Learning both Weights and Connections for Efficient Neural Networks (arxiv.org)</a></p>
+</li>
+<li>
+<p>Team report slides： <a href="https://show.zohopublic.com.cn/publish/6lbj22f4a099799de43d6837fe08ebf478d22">https://show.zohopublic.com.cn/publish/6lbj22f4a099799de43d6837fe08ebf478d22</a></p>
+</li>
+</ul>
+<h2 id="pseudo-code">Pseudo-code</h2>
+<figure data-type="image" tabindex="1"><img src="https://cdn.jsdelivr.net/gh/luserli/figure/photos/Untitled.png" alt="Untitled" loading="lazy"></figure>
+<h2 id="code-implementation">Code implementation</h2>
+<h3 id="make-mask-matrix-and-pruning">Make mask matrix and pruning</h3>
+<h3 id="set-threshold">Set threshold</h3>
+<p>对任意矩阵，设置一个threshold，矩阵中小于这个threshold的元素就置为0(False)，大于threshold的元素置为1(True)，这样就得到了这个矩阵的mask矩阵</p>
+<ul>
+<li>
+<p>code</p>
+<pre><code class="language-python">import numpy as np
+a = np.array([[0,1,2,3,4],[5,6,7,8,9]])
+threshold = 4
+print(&quot;oriarray:&quot;)
+print(a)
+mask = a &gt; threshold
+a=np.multiply(a,mask)
+print(&quot;pruning:&quot;)
+print(a)
+</code></pre>
+</li>
+<li>
+<p>output</p>
+<pre><code class="language-python">oriarray:
+[[0 1 2 3 4]
+ [5 6 7 8 9]]
+pruning:
+[[0 0 0 0 0]
+ [5 6 7 8 9]]
+</code></pre>
+</li>
+</ul>
+<p>对于未知、元素量大的矩阵，想要获得其mask矩阵，使用下面这个函数</p>
+<pre><code class="language-python">np.percentile(arrary, number)
+</code></pre>
+<p>这个函数将矩阵内的元素从小到大排列并且按照 number 索引去取得相应的分位数，number是0~100的数，比如number=50，就会将矩阵里所有</p>
+<p>元素分为等量的两份，返回两份数字之间的中位数。number=1，就会将矩阵分为1:99的两份数，返回这两分数之间的数。也就是返回按比例分组</p>
+<p>的阈值。</p>
+<p>所以可以改进上面生成mask矩阵的代码：</p>
+<ul>
+<li>
+<p>code</p>
+<pre><code class="language-python">import numpy as np
+a = np.array([[0,1,2,3,4],[5,6,7,8,9]])
+h_threshold = 20
+print(&quot;oriarray:&quot;)
+print(a)
+threshold = np.percentile(a, h_threshold)
+mask = a &gt; threshold
+a=np.multiply(a,mask)
+print(&quot;pruning:&quot;)
+print(a)
+</code></pre>
+</li>
+<li>
+<p>output</p>
+<pre><code>oriarray:
+[[0 1 2 3 4]
+ [5 6 7 8 9]]
+pruning:
+[[0 0 2 3 4]
+ [5 6 7 8 9]]
+</code></pre>
+</li>
+</ul>
+<h3 id="continuous-pruning">Continuous pruning</h3>
+<p>想要对矩阵进行连续的pruning，需要注意np.percentile(a, h_threshold)函数在对元素进行排列时，将所有的0都加入排列了，需要消除0对计算阈值的影响</p>
+<p>比如，对于矩阵</p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mo fence="true">[</mo><mtable><mtr><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>0</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>1</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>2</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>3</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>4</mn></mstyle></mtd></mtr><mtr><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>5</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>6</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>7</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>8</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>9</mn></mstyle></mtd></mtr></mtable><mo fence="true">]</mo></mrow><annotation encoding="application/x-tex">\begin{bmatrix}
+ 0&amp;1&amp;2&amp;3&amp;4\\
+ 5&amp;6&amp;7&amp;8&amp;9
+\end{bmatrix}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:2.40003em;vertical-align:-0.95003em;"></span><span class="minner"><span class="mopen delimcenter" style="top:0em;"><span class="delimsizing size3">[</span></span><span class="mord"><span class="mtable"><span class="col-align-c"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.45em;"><span style="top:-3.61em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">0</span></span></span><span style="top:-2.4099999999999997em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">5</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9500000000000004em;"><span></span></span></span></span></span><span class="arraycolsep" style="width:0.5em;"></span><span class="arraycolsep" style="width:0.5em;"></span><span class="col-align-c"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.45em;"><span style="top:-3.61em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">1</span></span></span><span style="top:-2.4099999999999997em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">6</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9500000000000004em;"><span></span></span></span></span></span><span class="arraycolsep" style="width:0.5em;"></span><span class="arraycolsep" style="width:0.5em;"></span><span class="col-align-c"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.45em;"><span style="top:-3.61em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">2</span></span></span><span style="top:-2.4099999999999997em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">7</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9500000000000004em;"><span></span></span></span></span></span><span class="arraycolsep" style="width:0.5em;"></span><span class="arraycolsep" style="width:0.5em;"></span><span class="col-align-c"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.45em;"><span style="top:-3.61em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">3</span></span></span><span style="top:-2.4099999999999997em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">8</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9500000000000004em;"><span></span></span></span></span></span><span class="arraycolsep" style="width:0.5em;"></span><span class="arraycolsep" style="width:0.5em;"></span><span class="col-align-c"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.45em;"><span style="top:-3.61em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">4</span></span></span><span style="top:-2.4099999999999997em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">9</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9500000000000004em;"><span></span></span></span></span></span></span></span><span class="mclose delimcenter" style="top:0em;"><span class="delimsizing size3">]</span></span></span></span></span></span></span></p>
+<p>，如果对它进行20%的pruning，则会得到</p>
+<p class='katex-block'><span class="katex-display"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mo fence="true">[</mo><mtable><mtr><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>0</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>0</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>2</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>3</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>4</mn></mstyle></mtd></mtr><mtr><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>5</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>6</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>7</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>8</mn></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mn>9</mn></mstyle></mtd></mtr></mtable><mo fence="true">]</mo></mrow><annotation encoding="application/x-tex">\begin{bmatrix}
+ 0&amp;0&amp;2&amp;3&amp;4\\
+ 5&amp;6&amp;7&amp;8&amp;9
+\end{bmatrix}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:2.40003em;vertical-align:-0.95003em;"></span><span class="minner"><span class="mopen delimcenter" style="top:0em;"><span class="delimsizing size3">[</span></span><span class="mord"><span class="mtable"><span class="col-align-c"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.45em;"><span style="top:-3.61em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">0</span></span></span><span style="top:-2.4099999999999997em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">5</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9500000000000004em;"><span></span></span></span></span></span><span class="arraycolsep" style="width:0.5em;"></span><span class="arraycolsep" style="width:0.5em;"></span><span class="col-align-c"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.45em;"><span style="top:-3.61em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">0</span></span></span><span style="top:-2.4099999999999997em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">6</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9500000000000004em;"><span></span></span></span></span></span><span class="arraycolsep" style="width:0.5em;"></span><span class="arraycolsep" style="width:0.5em;"></span><span class="col-align-c"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.45em;"><span style="top:-3.61em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">2</span></span></span><span style="top:-2.4099999999999997em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">7</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9500000000000004em;"><span></span></span></span></span></span><span class="arraycolsep" style="width:0.5em;"></span><span class="arraycolsep" style="width:0.5em;"></span><span class="col-align-c"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.45em;"><span style="top:-3.61em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">3</span></span></span><span style="top:-2.4099999999999997em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">8</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9500000000000004em;"><span></span></span></span></span></span><span class="arraycolsep" style="width:0.5em;"></span><span class="arraycolsep" style="width:0.5em;"></span><span class="col-align-c"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.45em;"><span style="top:-3.61em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">4</span></span></span><span style="top:-2.4099999999999997em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">9</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.9500000000000004em;"><span></span></span></span></span></span></span></span><span class="mclose delimcenter" style="top:0em;"><span class="delimsizing size3">]</span></span></span></span></span></span></span></p>
+<p>，但如果继续用原来的方法直接计算阈值对新生成的矩阵</p>
+<p>进行20%的pruning，矩阵的值并不会发生变化，原因就是两个0都被放进了数组里进行计算，10个数里的20%自然就是取前两个，也就是前两个0被置为0，</p>
+<p>结果也就不变。</p>
+<p>为此可以定义一个函数，每次进行连续的pruning时，该函数都将矩阵中的N个0变成一个0，然后再将其余的数添加到对应数组中，也就是这个函数返回的</p>
+<p>是只有1个0和输入向量其余非0数的数组：</p>
+<ul>
+<li>
+<p>function：</p>
+<pre><code class="language-python">def array0(a):
+	b=[]
+	b.append(0)
+	for i in a:
+		for j in i:
+			if j != 0:
+				b.append(j)
+	return b
+</code></pre>
+</li>
+<li>
+<p>code:</p>
+<pre><code class="language-python">#make mask
+import numpy as np
+a = np.array([[0,1,2,3,4],[5,6,7,8,9]])
+print(&quot;oriarray:&quot;)
+print(a)
+
+mask = a &gt; np.percentile(a, 20)
+print(np.percentile(a,20))
+a=np.multiply(a,mask)
+print(&quot;pruning:&quot;)
+print(a)
+#直接继续进行20%的pruning，输出不变
+mask = a &gt; np.percentile(a, 20)
+print(np.percentile(a,20))
+a=np.multiply(a,mask)
+print(&quot;pruning:&quot;)
+print(a)
+
+def array0(a):
+	b=[]
+	b.append(0)
+	for i in a:
+		for j in i:
+			if j != 0:
+				b.append(j)
+	return b
+#减去0后连续九次进行20%pruning
+b=array0(a)
+for l in range(9):
+	mask = a &gt; np.percentile(b, 20)
+	a=np.multiply(a,mask)
+	b=array0(a)
+
+print(&quot;pruning:&quot;)
+print(a)
+</code></pre>
+</li>
+<li>
+<p>output</p>
+<pre><code>oriarray:
+[[0 1 2 3 4]
+ [5 6 7 8 9]]
+1.8
+pruning:
+[[0 0 2 3 4]
+ [5 6 7 8 9]]
+1.6
+pruning:
+[[0 0 2 3 4]
+ [5 6 7 8 9]]
+pruning:
+[[0 0 0 0 0]
+ [0 6 7 8 9]]
+</code></pre>
+</li>
+</ul>
+<h3 id="retrain-the-trained-network-parameters">Retrain the trained network parameters</h3>
+<p>这里使用最基础的<code>numpy</code>构建神经网络，该网络可以自定义网络层数和相应节点数，</p>
+<p>对一个全连接层的神经网络进行参数pruning复现一下论文里的方法，下面是训练时的神经网络的隐藏层和输出层的结构示意图：</p>
+<pre><code class="language-python">#指定的网络层数和节点数
+layer_dims = [train_set_x.shape[0], 5, 4, 3, 2, 1]
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="https://s2.loli.net/2023/01/03/UjsCw54YH9p2JlT.jpg" alt="https://s2.loli.net/2023/01/03/UjsCw54YH9p2JlT.jpg" loading="lazy"></figure>
+<p>这是一个简单的MLP，作用是判断输入的图片中有没有车，如果图片里有车就输出1，图片里没有车就输出0。</p>
+<p>通过该网络训练好参数后将其保存下来，后期可以直接加载保存好的参数文件进行预测或者进行再训练。</p>
+<p>导入需要的包</p>
+<pre><code class="language-python">from tqdm import tqdm
+import numpy as np
+import matplotlib.pyplot as plt
+from nn_functions import *
+</code></pre>
+<p>载入数据集</p>
+<pre><code class="language-python">##load dataset
+datas = 'datasets/carvnocar.h5'
+train_set_x, train_y, test_set_x, test_y = load_files(datas)
+#行标准化
+train_x = train_set_x / 255
+test_x = test_set_x / 255
+</code></pre>
+<p>载入参数文件，得到训练好的原始参数和隐藏层层数</p>
+<pre><code class="language-python">##load parameters
+f_parameters = 'datasets/parameters.npy'
+parameters = np.load(f_parameters, allow_pickle='TRUE').item()
+L = len(parameters)//2 #隐藏层层数
+</code></pre>
+<p>编写判断当前参数对输入数据进行预测的准确度的函数</p>
+<pre><code class="language-python">#Print accuracy
+def accuracy(parameters):
+	Y_prediction_train = predict(parameters, train_x)
+	Y_prediction_test = predict(parameters, test_x)
+	print(&quot;Training set accuracy：&quot;  , format(100 - np.mean(np.abs(Y_prediction_train - train_y)) * 100) ,&quot;%&quot;)
+	print(&quot;Test set accuracy：&quot;  , format(100 - np.mean(np.abs(Y_prediction_test - test_y)) * 100) ,&quot;%&quot;)
+</code></pre>
+<p>由于在retrain-pruning的过程对比之前网络训练的过程中多了一个pruning的过程，</p>
+<p>所以不能直接调用之前训练网络参数的函数，需要重写前向传播函数和训练函数：</p>
+<p>编写pruning函数：</p>
+<pre><code class="language-python">#pruning function
+def prun(parameters, mask_w):
+	for l in range(1,L):
+		X = parameters['W'+str(l)]
+		X = np.multiply(X, mask_w[l-1])
+		parameters['W'+str(l)] = X
+	return parameters
+</code></pre>
+<p>重写<code>forward</code>函数，编写<code>retrain</code>函数： <code>retrain</code>函数通过调用<code>tqdm</code>包里的功能来实现打印训练过程进度条和实时刷新打印<code>cost</code>值</p>
+<pre><code class="language-python">#Rewrite forward propagation function
+def forward_f(X, parameters):
+    A = X
+    caches = []
+    for l in range(1, L):
+        A_l = A
+        A, cache = forward.activation_forward(A_l, parameters['W'+str(l)], parameters['b'+str(l)], &quot;relu&quot;)
+        caches.append(cache)
+    
+    AL, cache = forward.activation_forward(A, parameters['W' + str(L)], parameters['b' + str(L)], &quot;sigmoid&quot;)
+    caches.append(cache)
+
+    return AL, caches
+
+#Retrain function
+def retrain(parameters, X, Y, learning_rate, num_iterations):
+	with tqdm(total=num_iterations) as t:
+		for i in range(0, num_iterations):
+			AL, caches = forward_f(X, parameters)
+			cost = np.squeeze(forward.cost_function(AL, Y))
+			grads = backward.backward_function(AL, Y, caches)
+			parameters = update_parameters(parameters, grads, learning_rate)
+			parameters = prun(parameters, mask_w)
+			t.set_description('Retrain %i' % i)
+			t.set_postfix(cost=cost)
+			t.update(1)
+
+	return parameters, cost
+</code></pre>
+<p>重新载入一份参数以此进行pruning，从对伪代码进行复现</p>
+<pre><code class="language-python">prun_parameter = np.load(f_parameters, allow_pickle='TRUE').item()
+#hyper-parameters
+h_threshold=5
+delta=0.1
+learning_rate=0.05
+num_iterations=220
+
+degrees=[]
+costs=[]
+for i in range(1, 40):
+	#Make mask
+	mask_w=[]
+	for l in range(1,L):
+		a=prun_parameter['W'+str(l)]
+		b=array0(a)
+		threshold=np.percentile(np.abs(b), h_threshold)
+		ms=np.abs(a)&gt;threshold
+		if i&gt;1:
+			ms=np.multiply(ms,mask_w_l[l-1])# Multiply by the mask matrix of the previous step
+		mask_w.append(ms)
+		# print(&quot;threshold &quot;+str(l)+&quot;: &quot;+str(threshold))# print threshold
+	mask_w_l=mask_w# Save the mask matrix of the previous step
+	#Pruning parameters
+	prun_parameter=prun(prun_parameter, mask_w)#parameters pruning
+	print(&quot;\n &quot;+str(i)+&quot; Pruning parameters: &quot;)
+	n=degree(prun_parameter)
+	degrees.append(n)
+	accuracy(prun_parameter)
+	#Retrain parameters
+	retrain_parameters, cost = retrain(prun_parameter, train_x, train_y, learning_rate, num_iterations)
+	costs.append(cost)
+	print(&quot;\nPruning and retrain parameters: &quot;)
+	accuracy(retrain_parameters)
+	np.save('datasets/prun_parameter_1/prun_parameters'+str(i)+'.npy', retrain_parameters)
+	#Iterative pruning (Not used during the experiment)
+    # h_threshold+=delta*i
+	# h_threshold+=5
+
+degree_costs={'degree':degrees,'costs':costs}
+np.save('datasets/degree_costs.npy', degree_costs)
+</code></pre>
+<p>这里虽然设置了超参数delta(<em>δ</em>)但是因为用来测试的网络模型很小，禁不起步进比较大的pruning，</p>
+<p>就并没有运用到它，而是采用的每次都裁剪同样比例参数的做法层层递进。</p>
+<h3 id="some-problems">Some problems</h3>
+<ol>
+<li>
+<p>对输入进行连续剪枝的时候需要注意到矩阵里 0 的增多造成的影响</p>
+<ul>
+<li>
+<p>通过对上一次mask后的矩阵进行“消零”的处理就可以去除0对mask的影响，</p>
+<p>但引发的新的问题是，我连续剪枝后的矩阵对原矩阵来说并不是每一次都是同样</p>
+<p>的剪枝度，也就是说真实的剪枝度并不是简单的叠加的关系</p>
+</li>
+</ul>
+</li>
+<li>
+<p>连续递进剪枝度进行剪枝的时候，每一次不同程度的剪枝得到的mask矩阵都是相同的，</p>
+<p>也就是说上一次剪枝后被置为0的数由于这一次的mask矩阵是不同的就会有一些0会在Retrain的过程中</p>
+<p>被重新训练回去，这相当于白忙一场</p>
+<ul>
+<li>
+<p>只要在这一次剪枝生成mask矩阵的过程中让这一次的mask矩阵和上一次的mask矩阵按元素相乘，</p>
+<p>得到的这个新的mask矩阵取为本次的矩阵就可以解决这个问题。</p>
+</li>
+</ul>
+</li>
+</ol>
+<h3 id="complete-code">Complete Code</h3>
+<pre><code class="language-python">from tqdm import tqdm
+import numpy as np
+import matplotlib.pyplot as plt
+from nn_functions import *
+
+#pruning function
+def prun(parameters, mask_w):
+	for l in range(1,L):
+		X = parameters['W'+str(l)]
+		X = np.multiply(X, mask_w[l-1])
+		parameters['W'+str(l)] = X
+	return parameters
+
+#Rewrite forward propagation function
+def forward_f(X, parameters):
+    A = X
+    caches = []
+    for l in range(1, L):
+        A_l = A
+        A, cache = forward.activation_forward(A_l, parameters['W'+str(l)], parameters['b'+str(l)], &quot;relu&quot;)
+        caches.append(cache)
+    
+    AL, cache = forward.activation_forward(A, parameters['W' + str(L)], parameters['b' + str(L)], &quot;sigmoid&quot;)
+    caches.append(cache)
+
+    return AL, caches
+
+#Retrain function
+def retrain(parameters, X, Y, learning_rate, num_iterations):
+	with tqdm(total=num_iterations) as t:
+		for i in range(0, num_iterations):
+			AL, caches = forward_f(X, parameters)
+			cost = np.squeeze(forward.cost_function(AL, Y))
+			grads = backward.backward_function(AL, Y, caches)
+			parameters = update_parameters(parameters, grads, learning_rate)
+			parameters = prun(parameters, mask_w)
+			t.set_description('Retrain %i' % i)
+			t.set_postfix(cost=cost)
+			t.update(1)
+
+	return parameters, cost
+
+#Print accuracy
+def accuracy(parameters):
+	Y_prediction_train = predict(parameters, train_x)
+	Y_prediction_test = predict(parameters, test_x)
+	print(&quot;Training set accuracy：&quot;  , format(100 - np.mean(np.abs(Y_prediction_train - train_y)) * 100) ,&quot;%&quot;)
+	print(&quot;Test set accuracy：&quot;  , format(100 - np.mean(np.abs(Y_prediction_test - test_y)) * 100) ,&quot;%&quot;)
+
+#Print Pruning degree
+def degree(parameters):
+	n=0
+	num=0
+	L=len(parameters)//2
+	for l in range(1, L):
+		N=parameters['W'+str(l)]
+		for i in N:
+			for v in i:
+				num+=1
+				if v==0:
+					n+=1
+	degree=n/num*100
+	print(&quot;Parameter pruning degree: &quot;, round(degree,3),&quot;%&quot;)
+	return degree
+
+##load dataset
+datas = 'datasets/carvnocar.h5'
+train_set_x, train_y, test_set_x, test_y = load_files(datas)
+train_x = train_set_x / 255
+test_x = test_set_x / 255
+
+##load parameters
+f_parameters = 'datasets/parameters.npy'
+parameters = np.load(f_parameters, allow_pickle='TRUE').item()
+
+L = len(parameters)//2 
+
+print(&quot;Original parameters: &quot;)
+accuracy(parameters)
+
+def acc0(a):
+	n=0
+	for i in a:
+		for j in i:
+			if j == 0:
+				n+=1
+	return n
+
+def array0(a):
+	b=[]
+	if acc0(a)&gt;1:
+		b.append(0)
+	for i in a:
+		for j in i:
+			if j != 0:
+				b.append(j)
+	return b
+
+prun_parameter = np.load(f_parameters, allow_pickle='TRUE').item()
+#Hyper-parameters
+h_threshold=5
+delta=0.1
+learning_rate=0.05
+num_iterations=220
+
+degrees=[]
+costs=[]
+for i in range(1, 40):
+	#Make mask
+	mask_w=[]
+	for l in range(1,L):
+		a=prun_parameter['W'+str(l)]
+		b=array0(a)
+		threshold=np.percentile(np.abs(b), h_threshold)
+		ms=np.abs(a)&gt;threshold
+		if i&gt;1:
+			ms=np.multiply(ms,mask_w_l[l-1])# Multiply by the mask matrix of the previous step
+		mask_w.append(ms)
+		# print(&quot;threshold &quot;+str(l)+&quot;: &quot;+str(threshold))# print threshold
+	mask_w_l=mask_w# Save the mask matrix of the previous step
+	#Pruning parameters
+	prun_parameter=prun(prun_parameter, mask_w)#parameters pruning
+	print(&quot;\n &quot;+str(i)+&quot; Pruning parameters: &quot;)
+	n=degree(prun_parameter)
+	degrees.append(n)
+	accuracy(prun_parameter)
+	#Retrain parameters
+	retrain_parameters, cost = retrain(prun_parameter, train_x, train_y, learning_rate, num_iterations)
+	costs.append(cost)
+	print(&quot;\nPruning and retrain parameters: &quot;)
+	accuracy(retrain_parameters)
+	np.save('datasets/prun_parameter_1/prun_parameters'+str(i)+'.npy', retrain_parameters)
+	#Iterative pruning (Not used during the experiment)
+    # h_threshold+=delta*i
+	# h_threshold+=5
+
+degree_costs={'degree':degrees,'costs':costs}
+np.save('datasets/degree_costs.npy', degree_costs)
+</code></pre>
+<h2 id="experimental-record">Experimental record</h2>
+<p>不同剪枝度得到的训练至收敛后的cost：</p>
+<ul>
+<li></li>
+</ul>
+<figure data-type="image" tabindex="3"><img src="https://s2.loli.net/2023/01/03/tgQWHFR1n8IKXZM.png" alt="https://s2.loli.net/2023/01/03/tgQWHFR1n8IKXZM.png" loading="lazy"></figure>
+<p>使用第<strong>三十九次</strong>剪枝后重训练得到的参数与原参数进行比对、判断：</p>
+<pre><code>Ori parameter:
+Parameter pruning degree:  0.0 %
+Training set accuracy： 98.89502762430939 %
+Test set accuracy： 80.0 %
+Pruned parameter:
+Parameter pruning degree:  86.406 %
+Training set accuracy： 99.4475138121547 %
+Test set accuracy： 80.0 %
+</code></pre>
+<p>No pruning 的原<code>W1</code>参数：</p>
+<pre><code>[[ 0.17652197 -0.06106679 -0.07412075 ... -0.14664018 -0.00927934
+   0.06886687]
+ [ 0.11185143 -0.06578853 -0.0011025  ...  0.08918518  0.07352842
+  -0.00663041]
+ [-0.10772029  0.03944582 -0.24708339 ...  0.0550951  -0.03051575
+  -0.06339629]
+ [-0.05884084  0.20572945  0.03835234 ...  0.16899935  0.02967805
+   0.07047436]
+ [ 0.04006457 -0.03186718  0.00984735 ...  0.01321126 -0.09708557
+   0.21907507]]
+</code></pre>
+<p><code>86.406%</code>pruning后的<code>W1</code>参数：</p>
+<pre><code>[[ 0.18168446  0.          0.         ...  0.          0.
+   0.        ]
+ [ 0.          0.          0.         ...  0.          0.
+   0.        ]
+ [-0.         -0.         -0.25039574 ... -0.         -0.
+  -0.        ]
+ [ 0.          0.20658655  0.         ...  0.16506836  0.
+   0.        ]
+ [-0.         -0.         -0.         ... -0.         -0.
+   0.23942507]]
+</code></pre>
+<p>原参数对测试图片进行预测：</p>
+<figure data-type="image" tabindex="4"><img src="https://s2.loli.net/2023/01/03/4YToAjPKh5wO9kH.png" alt="https://s2.loli.net/2023/01/03/4YToAjPKh5wO9kH.png" loading="lazy"></figure>
+<p><strong>Accuracy: 26/27</strong></p>
+<p>剪枝后[<code>86.406%</code>]：</p>
+<figure data-type="image" tabindex="5"><img src="https://s2.loli.net/2023/01/03/UQH7gkdM3Ronm5X.png" alt="https://s2.loli.net/2023/01/03/UQH7gkdM3Ronm5X.png" loading="lazy"></figure>
+<p><strong>Accuracy: 25/27</strong></p>
+<p>修改→第一版的实验代码中验证模型的部分对数据集没用进行归一化处理，结果出现严重偏差，需要加上归一化</p>
+]]></content>
+    </entry>
+</feed>
